@@ -1,10 +1,98 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 
 const API = "http://localhost:8000";
 
-// ── Componente de navegación ──────────────────────────────
-function NavBar({ hora }) {
+// ── Login ─────────────────────────────────────────────────
+function Login({ onLogin }) {
+  const [correo, setCorreo] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const r = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correo, password }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setError(data.detail || "Error al iniciar sesión");
+      } else {
+        localStorage.setItem("cupitech_token", data.token);
+        localStorage.setItem("cupitech_user", JSON.stringify(data));
+        onLogin(data);
+      }
+    } catch (e) {
+      setError("No se pudo conectar al servidor");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#1E3A5F", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Calibri, sans-serif" }}>
+      <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, width: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontSize: 28, fontWeight: "bold", color: "#1E3A5F" }}>CupiTech</div>
+          <div style={{ fontSize: 14, color: "#64748B", marginTop: 4 }}>Plataforma de Mantenimiento — Autotraffic</div>
+        </div>
+
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: "bold", color: "#475569", display: "block", marginBottom: 6 }}>Correo electrónico</label>
+            <input
+              type="email"
+              value={correo}
+              onChange={e => setCorreo(e.target.value)}
+              placeholder="usuario@autotraffic.com.mx"
+              required
+              style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "2px solid #E2E8F0", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ fontSize: 13, fontWeight: "bold", color: "#475569", display: "block", marginBottom: 6 }}>Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "2px solid #E2E8F0", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {error && (
+            <div style={{ background: "#FEE2E2", border: "1px solid #C0392B", borderRadius: 8, padding: "10px 16px", color: "#C0392B", fontSize: 13, marginBottom: 16 }}>
+              ❌ {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: loading ? "#94A3B8" : "#C0392B", color: "#FFFFFF", fontSize: 16, fontWeight: "bold", cursor: loading ? "not-allowed" : "pointer" }}
+          >
+            {loading ? "Iniciando sesión..." : "Iniciar sesión"}
+          </button>
+        </form>
+
+        <div style={{ textAlign: "center", marginTop: 24, color: "#94A3B8", fontSize: 12 }}>
+          CupiTech v1.0 · Autotraffic © 2026
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── NavBar ────────────────────────────────────────────────
+function NavBar({ hora, usuario, onLogout }) {
   const location = useLocation();
   const links = [
     { path: "/", label: "📊 Dashboard" },
@@ -14,27 +102,33 @@ function NavBar({ hora }) {
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-        <div style={{ padding: "16px 0" }}>
-          <div style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "bold" }}>🤖 CupiTech</div>
-          <div style={{ color: "#94A3B8", fontSize: 11 }}>Autotraffic</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ padding: "12px 0" }}>
+          <div style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "bold" }}>🤖 CupiTech</div>
+          <div style={{ color: "#94A3B8", fontSize: 10 }}>Autotraffic</div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           {links.map(l => (
             <Link key={l.path} to={l.path} style={{
-              padding: "8px 16px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: "bold",
+              padding: "8px 14px", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: "bold",
               background: location.pathname === l.path ? "#C0392B" : "transparent",
               color: location.pathname === l.path ? "#FFFFFF" : "#94A3B8",
             }}>{l.label}</Link>
           ))}
         </div>
       </div>
-      <div style={{ textAlign: "right" }}>
-        <div style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "bold" }}>
-          {hora.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "bold" }}>
+            {hora.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </div>
+          <div style={{ color: "#94A3B8", fontSize: 10 }}>
+            {hora.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
         </div>
-        <div style={{ color: "#94A3B8", fontSize: 11 }}>
-          {hora.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}
+        <div style={{ borderLeft: "1px solid #334155", paddingLeft: 16 }}>
+          <div style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "bold" }}>{usuario?.nombre?.split(" ")[0]}</div>
+          <button onClick={onLogout} style={{ background: "none", border: "none", color: "#94A3B8", fontSize: 11, cursor: "pointer", padding: 0 }}>Cerrar sesión</button>
         </div>
       </div>
     </div>
@@ -51,7 +145,6 @@ function Dashboard({ proyectos, solar, reflectores, loading }) {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
           { label: "Proyectos activos", valor: proyectos.filter(p => p.estado === "activo").length, total: proyectos.length, color: "#166534", icon: "📍" },
@@ -71,8 +164,7 @@ function Dashboard({ proyectos, solar, reflectores, loading }) {
         ))}
       </div>
 
-      {/* Proyectos */}
-      <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+      <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
         <h2 style={{ margin: "0 0 16px", color: "#1E3A5F", fontSize: 18 }}>📋 Estado de Proyectos</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
           {proyectos.map((p, i) => (
@@ -83,7 +175,7 @@ function Dashboard({ proyectos, solar, reflectores, loading }) {
               {(p.criticas > 0 || p.alertas > 0) && (
                 <div style={{ marginTop: 6, fontSize: 11 }}>
                   {p.criticas > 0 && <span style={{ color: "#C0392B", fontWeight: "bold" }}>🔴 {p.criticas} críticas </span>}
-                  {p.alertas > 0 && <span style={{ color: "#E67E22", fontWeight: "bold" }}>🟠 {p.alertas} alertas</span>}
+                  {p.alertas > 0 && <span style={{ color: "#E67E22", fontWeight: "bold" }}>🟠 {p.alertas}</span>}
                 </div>
               )}
               <div style={{ marginTop: 6, fontSize: 11, color: estadoColor[p.estado], fontWeight: "bold" }}>{estadoLabel[p.estado]}</div>
@@ -96,43 +188,38 @@ function Dashboard({ proyectos, solar, reflectores, loading }) {
 }
 
 // ── Alertas ───────────────────────────────────────────────
-function Alertas() {
+function Alertas({ token, proyectosUsuario }) {
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [proyecto, setProyecto] = useState("PUEBLA");
+  const [proyecto, setProyecto] = useState(proyectosUsuario[0] || "PUEBLA");
 
-  useEffect(() => {
-    cargar();
-  }, [proyecto]);
+  useEffect(() => { cargar(); }, [proyecto]);
 
   async function cargar() {
     setLoading(true);
     try {
-      const r = await fetch(`${API}/api/alertas/${proyecto}`);
+      const r = await fetch(`${API}/api/alertas/${proyecto}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await r.json();
       setAlertas(data.alertas || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
+
+  const proyectosDisp = ["PUEBLA", "QRO", "EDOMEX", "LEON", "TLAXCALA"].filter(p => proyectosUsuario.includes(p));
 
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1 style={{ margin: 0, color: "#1E3A5F", fontSize: 22 }}>🚨 Alertas activas</h1>
         <div style={{ display: "flex", gap: 8 }}>
-          {["PUEBLA", "QUERETARO", "EDOMEX"].map(p => (
+          {proyectosDisp.map(p => (
             <button key={p} onClick={() => setProyecto(p)} style={{
               padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 13,
-              background: proyecto === p ? "#C0392B" : "#F1F5F9",
-              color: proyecto === p ? "#FFFFFF" : "#475569",
+              background: proyecto === p ? "#C0392B" : "#F1F5F9", color: proyecto === p ? "#FFFFFF" : "#475569",
             }}>{p}</button>
           ))}
         </div>
       </div>
-
       {loading ? (
         <div style={{ textAlign: "center", color: "#94A3B8", padding: 40 }}>Consultando cámaras...</div>
       ) : alertas.length === 0 ? (
@@ -143,7 +230,7 @@ function Alertas() {
         </div>
       ) : (
         <div>
-          <div style={{ marginBottom: 16, color: "#64748B" }}>{alertas.length} cámara(s) con alerta en {proyecto}</div>
+          <div style={{ marginBottom: 16, color: "#64748B" }}>{alertas.length} cámara(s) con alerta</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             {alertas.map((a, i) => (
               <div key={i} style={{ background: "#FFFFFF", border: `2px solid ${a.color}`, borderRadius: 10, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
@@ -173,13 +260,10 @@ function Solar({ solar, loading }) {
             const socNum = online ? parseInt(soc) : 0;
             const color = !online ? "#94A3B8" : socNum >= 80 ? "#166534" : socNum >= 50 ? "#D97706" : "#C0392B";
             return (
-              <div key={i} style={{ border: `2px solid ${color}`, borderRadius: 10, padding: 12, background: online ? "#F0FDF4" : "#F8FAFC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+              <div key={i} style={{ border: `2px solid ${color}`, borderRadius: 10, padding: 12, background: online ? "#F0FDF4" : "#F8FAFC" }}>
                 <div style={{ fontSize: 11, fontWeight: "bold", color: "#0F172A", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eq.ut}</div>
                 <div style={{ fontSize: 22, fontWeight: "bold", color }}>{soc}</div>
                 <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{online ? pv : "Offline"}</div>
-                {eq.max_pv && eq.max_pv !== "--" && (
-                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 2 }}>Pico: {eq.max_pv}</div>
-                )}
               </div>
             );
           })}
@@ -199,12 +283,10 @@ function Reflectores({ reflectores, loading }) {
           {reflectores.map((r, i) => (
             <div key={i} style={{ background: "#FFFFFF", border: `2px solid ${r.encendido ? "#166534" : "#C0392B"}`, borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
               <div style={{ fontWeight: "bold", fontSize: 16, color: "#0F172A", marginBottom: 8 }}>{r.nombre}</div>
-              <div style={{ fontSize: 28, fontWeight: "bold", color: r.encendido ? "#166534" : "#C0392B", margin: "8px 0" }}>
+              <div style={{ fontSize: 26, fontWeight: "bold", color: r.encendido ? "#166534" : "#C0392B", margin: "8px 0" }}>
                 {r.encendido ? "🟢 ENCENDIDO" : "🔴 APAGADO"}
               </div>
-              <div style={{ fontSize: 13, color: "#64748B" }}>
-                {r.online ? "✅ En línea" : "❌ Offline"}
-              </div>
+              <div style={{ fontSize: 13, color: "#64748B" }}>{r.online ? "✅ En línea" : "❌ Offline"}</div>
               {r.voltaje && (
                 <div style={{ marginTop: 8, fontSize: 13, color: "#475569" }}>
                   ⚡ {r.voltaje}V | 🔌 {r.corriente}A | 💪 {r.potencia_real}W
@@ -219,7 +301,7 @@ function Reflectores({ reflectores, loading }) {
 }
 
 // ── App principal ─────────────────────────────────────────
-function App() {
+function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
   const [solar, setSolar] = useState([]);
   const [reflectores, setReflectores] = useState([]);
@@ -234,36 +316,63 @@ function App() {
   }, []);
 
   async function cargarDatos() {
+    const headers = { Authorization: `Bearer ${token}` };
     try {
       const [pRes, sRes, rRes] = await Promise.all([
-        fetch(`${API}/api/proyectos`),
-        fetch(`${API}/api/solar`),
-        fetch(`${API}/api/reflectores`),
+        fetch(`${API}/api/proyectos`, { headers }),
+        fetch(`${API}/api/solar`, { headers }),
+        fetch(`${API}/api/reflectores`, { headers }),
       ]);
       setProyectos((await pRes.json()).proyectos || []);
       setSolar((await sRes.json()).equipos || []);
       setReflectores((await rRes.json()).reflectores || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div style={{ fontFamily: "Calibri, sans-serif", background: "#F1F5F9", minHeight: "100vh" }}>
+      <NavBar hora={hora} usuario={usuario} onLogout={onLogout} />
+      <Routes>
+        <Route path="/" element={<Dashboard proyectos={proyectos} solar={solar} reflectores={reflectores} loading={loading} />} />
+        <Route path="/alertas" element={<Alertas token={token} proyectosUsuario={usuario?.proyectos || []} />} />
+        <Route path="/solar" element={<Solar solar={solar} loading={loading} />} />
+        <Route path="/reflectores" element={<Reflectores reflectores={reflectores} loading={loading} />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+      <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
+        CupiTech v1.0 — Autotraffic © 2026 · Actualización cada 60 seg
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [usuario, setUsuario] = useState(() => {
+    const saved = localStorage.getItem("cupitech_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem("cupitech_token") || null);
+
+  function handleLogin(data) {
+    setUsuario(data);
+    setToken(data.token);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("cupitech_token");
+    localStorage.removeItem("cupitech_user");
+    setUsuario(null);
+    setToken(null);
+  }
+
+  if (!usuario || !token) {
+    return <Login onLogin={handleLogin} />;
   }
 
   return (
     <Router>
-      <div style={{ fontFamily: "Calibri, sans-serif", background: "#F1F5F9", minHeight: "100vh" }}>
-        <NavBar hora={hora} />
-        <Routes>
-          <Route path="/" element={<Dashboard proyectos={proyectos} solar={solar} reflectores={reflectores} loading={loading} />} />
-          <Route path="/alertas" element={<Alertas />} />
-          <Route path="/solar" element={<Solar solar={solar} loading={loading} />} />
-          <Route path="/reflectores" element={<Reflectores reflectores={reflectores} loading={loading} />} />
-        </Routes>
-        <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
-          CupiTech v1.0 — Autotraffic © 2026 · Actualización cada 60 seg
-        </div>
-      </div>
+      <AppContent usuario={usuario} token={token} onLogout={handleLogout} />
     </Router>
   );
 }
