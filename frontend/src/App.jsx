@@ -99,6 +99,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/alertas", label: "🚨 Alertas" },
     { path: "/solar", label: "☀️ Solar" },
     { path: "/reflectores", label: "💡 Reflectores" },
+    { path: "/accesos", label: "🔗 Accesos" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -300,6 +301,143 @@ function Reflectores({ reflectores, loading }) {
   );
 }
 
+// Componente Accesos — agregar al App.jsx
+
+function Accesos({ token, proyectosUsuario }) {
+  const [proyecto, setProyecto] = useState(proyectosUsuario[0] || "PUEBLA");
+  const [busqueda, setBusqueda] = useState("");
+  const [resultado, setResultado] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const API = "http://localhost:8000";
+
+  async function buscarUT() {
+    if (!busqueda.trim()) return;
+    setLoading(true);
+    setError("");
+    setResultado(null);
+    try {
+      const r = await fetch(`${API}/api/accesos/${proyecto}/${busqueda.trim().toUpperCase()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setError(data.detail || "UT no encontrada");
+      } else {
+        setResultado(data);
+      }
+    } catch (e) {
+      setError("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const iconos = {
+    "Enlace directo (con puerto)": "🌐",
+    "Puerto WAN": "🔌",
+    "IP Cámara": "📷",
+    "Módem SSID": "📶",
+    "Contraseña WiFi": "🔑",
+    "Teléfono línea": "📱",
+    "MAC Cámara": "💻",
+    "TeamViewer ID": "🖥️",
+    "TeamViewer Pass": "🔐",
+    "Red Telcel (4G)": "📡",
+    "Contraseña 4G": "🔑",
+    "S/N Módem": "🔢",
+    "IMEI": "📋",
+    "Vialidad": "📍",
+    "Tipo": "🔗",
+    "Grupo DynDNS": "🌍",
+  };
+
+  const proyectosDisp = ["PUEBLA", "QRO"].filter(p => proyectosUsuario.includes(p));
+
+  return (
+    <div style={{ padding: 24 }}>
+      <h1 style={{ margin: "0 0 20px", color: "#1E3A5F", fontSize: 22 }}>🔗 Accesos Remotos</h1>
+
+      {/* Buscador */}
+      <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Selector proyecto */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {proyectosDisp.map(p => (
+              <button key={p} onClick={() => { setProyecto(p); setResultado(null); setBusqueda(""); }} style={{
+                padding: "10px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 13,
+                background: proyecto === p ? "#1E3A5F" : "#F1F5F9",
+                color: proyecto === p ? "#FFFFFF" : "#475569",
+              }}>{p}</button>
+            ))}
+          </div>
+          {/* Campo de búsqueda */}
+          <input
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && buscarUT()}
+            placeholder="Ej: UT411 o AJS02800W_A"
+            style={{ flex: 1, minWidth: 200, padding: "10px 16px", borderRadius: 8, border: "2px solid #E2E8F0", fontSize: 14, outline: "none" }}
+          />
+          <button onClick={buscarUT} disabled={loading} style={{
+            padding: "10px 24px", borderRadius: 8, border: "none", background: "#C0392B", color: "#FFFFFF",
+            fontWeight: "bold", fontSize: 14, cursor: "pointer",
+          }}>
+            {loading ? "Buscando..." : "🔍 Buscar"}
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{ background: "#FEE2E2", border: "1px solid #C0392B", borderRadius: 12, padding: 20, color: "#C0392B", marginBottom: 16 }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {/* Resultado */}
+      {resultado && (
+        <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: "bold", color: "#1E3A5F" }}>{resultado.ut}</div>
+              <div style={{ color: "#64748B", fontSize: 14 }}>{resultado.campos?.Vialidad || ""} · {resultado.proyecto}</div>
+            </div>
+            <div style={{ background: "#F0FDF4", border: "2px solid #166534", borderRadius: 8, padding: "8px 16px", color: "#166534", fontWeight: "bold", fontSize: 13 }}>
+              ✅ Datos encontrados
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+            {Object.entries(resultado.campos).filter(([k]) => k !== "Vialidad").map(([campo, valor], i) => (
+              <div key={i} style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 16, background: "#F8FAFC" }}>
+                <div style={{ fontSize: 12, color: "#64748B", marginBottom: 4 }}>
+                  {iconos[campo] || "•"} {campo}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: "bold", color: "#0F172A", wordBreak: "break-all" }}>
+                  {campo.includes("Enlace") ? (
+                    <a href={valor} target="_blank" rel="noreferrer" style={{ color: "#2563EB" }}>{valor}</a>
+                  ) : valor}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Estado vacío */}
+      {!resultado && !error && !loading && (
+        <div style={{ textAlign: "center", padding: 60, color: "#94A3B8" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
+          <div style={{ fontSize: 18, fontWeight: "bold" }}>Busca una UT para ver sus accesos</div>
+          <div style={{ fontSize: 14, marginTop: 8 }}>Escribe el código de la UT y presiona Enter o el botón Buscar</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -338,6 +476,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/alertas" element={<Alertas token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="/solar" element={<Solar solar={solar} loading={loading} />} />
         <Route path="/reflectores" element={<Reflectores reflectores={reflectores} loading={loading} />} />
+        <Route path="/accesos" element={<Accesos token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>

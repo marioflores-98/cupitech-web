@@ -198,7 +198,24 @@ def get_reflectores(authorization: str = Header(None)):
     else:
         reflectores = []
     return {"reflectores": reflectores, "total": len(reflectores)}
+@app.get("/api/accesos/{proyecto}/{ut}")
+def get_acceso(proyecto: str, ut: str, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    if proyecto.upper() not in sesion["proyectos"]:
+        raise HTTPException(status_code=403, detail="Sin acceso a este proyecto")
+    from accesos_api import buscar_acceso
+    resultado, error = buscar_acceso(ut, proyecto.upper())
+    if error:
+        raise HTTPException(status_code=404, detail=error)
+    return resultado
 
+@app.get("/api/accesos/{proyecto}")
+def get_uts(proyecto: str, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    if proyecto.upper() not in sesion["proyectos"]:
+        raise HTTPException(status_code=403, detail="Sin acceso a este proyecto")
+    from accesos_api import listar_uts
+    return {"uts": listar_uts(proyecto.upper()), "proyecto": proyecto}
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
