@@ -66,7 +66,7 @@ def actualizar_reflectores():
 def parsear_alerta(cam, nivel, color):
     """Extrae solo los campos necesarios de una cámara"""
     return {
-        "ut": cam.get("camera_id", cam.get("location", "Desconocida")),
+        "ut": cam.get("location", cam.get("camera_id", "Desconocida")),
         "nivel": nivel,
         "color": color,
         "lag_min": cam.get("lag_minutes", 0),
