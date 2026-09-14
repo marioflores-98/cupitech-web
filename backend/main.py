@@ -1,5 +1,5 @@
 """
-CupiTech Web — Backend API
+CupiTech Web — Backend API v3
 FastAPI REST API para la PWA de CupiTech
 """
 from fastapi import FastAPI
@@ -28,10 +28,12 @@ app.add_middleware(
 _cache = {
     "solar": {"data": [], "updated": None},
     "reflectores": {"data": [], "updated": None},
+    "alertas": {},  # por proyecto
 }
 
+PROYECTOS = ["PUEBLA", "QUERETARO", "EDOMEX", "LEON", "TLAXCALA"]
+
 def actualizar_solar():
-    """Actualiza datos solares en background cada 5 minutos"""
     while True:
         try:
             from solar_api import obtener_todos_api
@@ -40,13 +42,12 @@ def actualizar_solar():
             _cache["solar"]["updated"] = datetime.now().isoformat()
         except Exception as e:
             print(f"Error solar cache: {e}")
-        time.sleep(300)  # cada 5 minutos
+        time.sleep(300)
 
 def actualizar_reflectores():
-    """Actualiza reflectores en background cada 5 minutos"""
     while True:
         try:
-            from reflector_api import get_todos_reflectores, formatear_estado_telegram
+            from reflector_api import get_todos_reflectores
             datos = get_todos_reflectores()
             _cache["reflectores"]["data"] = datos
             _cache["reflectores"]["updated"] = datetime.now().isoformat()
@@ -54,23 +55,43 @@ def actualizar_reflectores():
             print(f"Error reflectores cache: {e}")
         time.sleep(300)
 
+def actualizar_alertas():
+    while True:
+        try:
+            from alertas_camaras import obtener_alertas
+            for proyecto in PROYECTOS:
+                try:
+                    rojas, naranjas, total = obtener_alertas(proyecto)
+                    alertas_list = []
+                    for a in rojas:
+                        alertas_list.append({"ut": a, "nivel": "CRITICO", "color": "#C0392B"})
+                    for a in naranjas:
+                        alertas_list.append({"ut": a, "nivel": "ALERTA", "color": "#E67E22"})
+                    _cache["alertas"][proyecto] = {
+                        "alertas": alertas_list,
+                        "total": total,
+                        "criticas": len(rojas),
+                        "alertas_count": len(naranjas),
+                        "updated": datetime.now().isoformat()
+                    }
+                except:
+                    pass
+        except Exception as e:
+            print(f"Error alertas cache: {e}")
+        time.sleep(900)  # cada 15 min
+
 @app.on_event("startup")
 def startup():
-    """Inicia los threads de caché al arrancar"""
     threading.Thread(target=actualizar_solar, daemon=True).start()
     threading.Thread(target=actualizar_reflectores, daemon=True).start()
+    threading.Thread(target=actualizar_alertas, daemon=True).start()
     print("✅ Threads de caché iniciados")
 
 # ── Endpoints ─────────────────────────────────────────────
 
 @app.get("/")
 def root():
-    return {
-        "sistema": "CupiTech API",
-        "version": "1.0.0",
-        "estado": "activo",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"sistema": "CupiTech API", "version": "1.0.0", "estado": "activo", "timestamp": datetime.now().isoformat()}
 
 @app.get("/health")
 def health():
@@ -78,35 +99,61 @@ def health():
 
 @app.get("/api/proyectos")
 def get_proyectos():
+    proyectos = [
+        {"id": "PUEBLA", "nombre": "Puebla", "uts": 132, "estado": "activo"},
+        {"id": "QRO", "nombre": "Querétaro", "uts": 22, "estado": "activo"},
+        {"id": "EDOMEX", "nombre": "Edo. México", "uts": 95, "estado": "en_integracion"},
+        {"id": "LEON", "nombre": "León", "uts": 0, "estado": "pendiente"},
+        {"id": "TLAXCALA", "nombre": "Tlaxcala", "uts": 0, "estado": "pendiente"},
+    ]
+    # Agregar conteo de alertas por proyecto
+    for p in proyectos:
+        cache_alertas = _cache["alertas"].get(p["id"], {})
+        p["criticas"] = cache_alertas.get("criticas", 0)
+        p["alertas"] = cache_alertas.get("alertas_count", 0)
+    return {"proyectos": proyectos}
+
+@app.get("/api/alertas")
+def get_alertas_todas():
+    """Todas las alertas de todos los proyectos"""
+    todas = []
+    for proyecto, data in _cache["alertas"].items():
+        for a in data.get("alertas", []):
+            a["proyecto"] = proyecto
+            todas.append(a)
     return {
-        "proyectos": [
-            {"id": "PUEBLA", "nombre": "Puebla", "uts": 132, "estado": "activo"},
-            {"id": "QRO", "nombre": "Querétaro", "uts": 22, "estado": "activo"},
-            {"id": "EDOMEX", "nombre": "Edo. México", "uts": 95, "estado": "en_integracion"},
-            {"id": "LEON", "nombre": "León", "uts": 0, "estado": "pendiente"},
-            {"id": "TLAXCALA", "nombre": "Tlaxcala", "uts": 0, "estado": "pendiente"},
-        ]
+        "alertas": todas,
+        "total": len(todas),
+        "criticas": len([a for a in todas if a["nivel"] == "CRITICO"]),
+        "updated": datetime.now().isoformat()
     }
+
+@app.get("/api/alertas/{proyecto}")
+def get_alertas_proyecto(proyecto: str):
+    """Alertas de un proyecto específico"""
+    data = _cache["alertas"].get(proyecto.upper(), {})
+    if not data:
+        # Si no está en caché, consultar directamente
+        try:
+            from alertas_camaras import obtener_alertas
+            rojas, naranjas, total = obtener_alertas(proyecto.upper())
+            alertas_list = []
+            for a in rojas:
+                alertas_list.append({"ut": a, "nivel": "CRITICO", "color": "#C0392B", "proyecto": proyecto})
+            for a in naranjas:
+                alertas_list.append({"ut": a, "nivel": "ALERTA", "color": "#E67E22", "proyecto": proyecto})
+            return {"proyecto": proyecto, "alertas": alertas_list, "total": total, "criticas": len(rojas)}
+        except Exception as e:
+            return {"proyecto": proyecto, "alertas": [], "total": 0, "error": str(e)}
+    return {"proyecto": proyecto, **data}
 
 @app.get("/api/solar")
 def get_solar():
-    """Retorna datos solares desde caché"""
-    return {
-        "equipos": _cache["solar"]["data"],
-        "total": len(_cache["solar"]["data"]),
-        "updated": _cache["solar"]["updated"],
-        "cargando": len(_cache["solar"]["data"]) == 0
-    }
+    return {"equipos": _cache["solar"]["data"], "total": len(_cache["solar"]["data"]), "updated": _cache["solar"]["updated"], "cargando": len(_cache["solar"]["data"]) == 0}
 
 @app.get("/api/reflectores")
 def get_reflectores():
-    """Retorna reflectores desde caché"""
-    return {
-        "reflectores": _cache["reflectores"]["data"],
-        "total": len(_cache["reflectores"]["data"]),
-        "updated": _cache["reflectores"]["updated"],
-        "cargando": len(_cache["reflectores"]["data"]) == 0
-    }
+    return {"reflectores": _cache["reflectores"]["data"], "total": len(_cache["reflectores"]["data"]), "updated": _cache["reflectores"]["updated"]}
 
 if __name__ == "__main__":
     import uvicorn
