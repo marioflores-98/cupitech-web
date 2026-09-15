@@ -100,6 +100,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/solar", label: "☀️ Solar" },
     { path: "/reflectores", label: "💡 Reflectores" },
     { path: "/accesos", label: "🔗 Accesos" },
+    { path: "/inventario", label: "📦 Inventario" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -438,6 +439,270 @@ function Accesos({ token, proyectosUsuario }) {
   );
 }
 
+
+// ── Inventario ────────────────────────────────────────────
+function Inventario({ token, proyectosUsuario }) {
+  const [vista, setVista] = useState("general");
+  const [proyecto, setProyecto] = useState(proyectosUsuario[0] || "PUEBLA");
+  const [busqueda, setBusqueda] = useState("");
+  const [datos, setDatos] = useState(null);
+  const [datosUT, setDatosUT] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingUT, setLoadingUT] = useState(false);
+  const [error, setError] = useState("");
+
+  const API = "http://localhost:8000";
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => { cargarGeneral(); }, [proyecto]);
+
+  async function cargarGeneral() {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/inventario/${proyecto}`, { headers });
+      const data = await r.json();
+      setDatos(data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+
+  async function buscarUT() {
+    if (!busqueda.trim()) return;
+    setLoadingUT(true);
+    setError("");
+    setDatosUT(null);
+    try {
+      const r = await fetch(`${API}/api/inventario/${proyecto}/${busqueda.trim().toUpperCase()}`, { headers });
+      const data = await r.json();
+      if (!r.ok) { setError(data.detail || "UT no encontrada"); }
+      else { setDatosUT(data); setVista("ut"); }
+    } catch (e) { setError("Error de conexión"); }
+    finally { setLoadingUT(false); }
+  }
+
+  const tipoColor = {
+    "Cambio por falla": "#C0392B",
+    "Instalación": "#166534",
+    "Retiro sin reemplazo": "#64748B",
+    "Robo": "#7C3AED",
+    "Daño físico": "#D97706",
+    "Sustitución preventiva": "#2563EB",
+  };
+
+  const catIcon = {
+    "Cámara": "📷", "Eléctrico": "⚡", "Comunicación": "📡",
+    "Solar": "☀️", "Iluminación": "💡", "Estructura": "🏗️", "Otro": "📦"
+  };
+
+  const proyectosDisp = ["PUEBLA", "QRO"].filter(p => proyectosUsuario.includes(p));
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h1 style={{ margin: 0, color: "#1E3A5F", fontSize: 22 }}>📦 Inventario</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          {proyectosDisp.map(p => (
+            <button key={p} onClick={() => { setProyecto(p); setVista("general"); setDatosUT(null); }} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 13,
+              background: proyecto === p ? "#1E3A5F" : "#F1F5F9", color: proyecto === p ? "#FFFFFF" : "#475569",
+            }}>{p}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Buscador */}
+      <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => { setVista("general"); setDatosUT(null); }} style={{
+            padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: "bold",
+            background: vista === "general" ? "#1E3A5F" : "#F1F5F9", color: vista === "general" ? "#FFFFFF" : "#475569"
+          }}>📊 General</button>
+          <button onClick={() => setVista("ut")} style={{
+            padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: "bold",
+            background: vista === "ut" ? "#1E3A5F" : "#F1F5F9", color: vista === "ut" ? "#FFFFFF" : "#475569"
+          }}>🔍 Por UT</button>
+        </div>
+        <input
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && buscarUT()}
+          placeholder="Buscar UT (ej: UT522)"
+          style={{ flex: 1, padding: "10px 16px", borderRadius: 8, border: "2px solid #E2E8F0", fontSize: 14, outline: "none" }}
+        />
+        <button onClick={buscarUT} disabled={loadingUT} style={{
+          padding: "10px 20px", borderRadius: 8, border: "none", background: "#C0392B", color: "#FFFFFF",
+          fontWeight: "bold", fontSize: 13, cursor: "pointer",
+        }}>{loadingUT ? "..." : "Buscar"}</button>
+      </div>
+
+      {error && <div style={{ background: "#FEE2E2", border: "1px solid #C0392B", borderRadius: 10, padding: 16, color: "#C0392B", marginBottom: 16 }}>❌ {error}</div>}
+
+      {/* Vista General */}
+      {vista === "general" && datos && !loading && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+            {[
+              { label: "Sitios con inventario", valor: datos.total_sitios || 0, color: "#1E3A5F", icon: "📍" },
+              { label: "Total componentes", valor: datos.total_componentes || 0, color: "#166534", icon: "📦" },
+              { label: "En falla", valor: datos.en_falla || 0, color: "#C0392B", icon: "⚠️" },
+              { label: "Valor total", valor: `$${((datos.total_valor || 0) / 1000000).toFixed(2)}M`, color: "#D97706", icon: "💰" },
+            ].map((k, i) => (
+              <div key={i} style={{ background: "#FFFFFF", borderLeft: `4px solid ${k.color}`, borderRadius: 10, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: 22 }}>{k.icon}</div>
+                <div style={{ fontSize: 28, fontWeight: "bold", color: k.color, margin: "4px 0" }}>{k.valor}</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {/* Por categoría */}
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+              <h3 style={{ margin: "0 0 12px", color: "#1E3A5F", fontSize: 15 }}>Por categoría</h3>
+              {(datos.por_categoria || []).map((cat, i) => {
+                const maxVal = Math.max(...(datos.por_categoria || []).map(c => c.valor));
+                const pct = maxVal > 0 ? (cat.valor / maxVal) * 100 : 0;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, width: 120, color: "#0F172A" }}>{catIcon[cat.categoria] || "📦"} {cat.categoria}</span>
+                    <div style={{ flex: 1, background: "#F1F5F9", borderRadius: 4, height: 8, overflow: "hidden" }}>
+                      <div style={{ background: "#1E3A5F", height: "100%", width: `${pct}%` }}></div>
+                    </div>
+                    <span style={{ fontSize: 12, color: "#64748B", width: 70, textAlign: "right" }}>${(cat.valor / 1000).toFixed(0)}k</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Top sitios */}
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+              <h3 style={{ margin: "0 0 12px", color: "#1E3A5F", fontSize: 15 }}>Sitios con más valor</h3>
+              {(datos.sitios || []).slice(0, 5).map((s, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F8FAFC", borderRadius: 8, marginBottom: 6, cursor: "pointer" }}
+                  onClick={() => { setBusqueda(s.ut); buscarUT(); }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#0F172A" }}>{s.ut}</div>
+                    <div style={{ fontSize: 11, color: "#64748B" }}>{s.componentes} componentes</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#D97706" }}>${(s.valor_total / 1000).toFixed(0)}k</div>
+                    {s.en_falla > 0 && <div style={{ fontSize: 11, color: "#C0392B" }}>⚠️ {s.en_falla} falla(s)</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tabla todos los sitios */}
+          <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+            <h3 style={{ margin: "0 0 12px", color: "#1E3A5F", fontSize: 15 }}>Todos los sitios</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#F1F5F9" }}>
+                  {["UT", "Vialidad", "Componentes", "Estado", "Valor total"].map((h, i) => (
+                    <th key={i} style={{ padding: "8px 10px", textAlign: i > 1 ? "center" : "left", color: "#64748B", fontWeight: "bold", fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(datos.sitios || []).map((s, i) => (
+                  <tr key={i} style={{ borderBottom: "0.5px solid #E2E8F0", cursor: "pointer", background: i % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}
+                    onClick={() => { setBusqueda(s.ut); buscarUT(); }}>
+                    <td style={{ padding: "8px 10px", fontWeight: "bold", color: "#1E3A5F" }}>{s.ut}</td>
+                    <td style={{ padding: "8px 10px", color: "#64748B" }}>{s.vialidad}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>{s.componentes}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                      <span style={{ background: s.estado === "OK" ? "#DCFCE7" : "#FEE2E2", color: s.estado === "OK" ? "#166534" : "#C0392B", padding: "2px 8px", borderRadius: 10, fontSize: 11 }}>{s.estado}</span>
+                    </td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: "bold", color: "#D97706" }}>${s.valor_total.toLocaleString("es-MX", { maximumFractionDigits: 0 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Vista Por UT */}
+      {vista === "ut" && datosUT && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+            {[
+              { label: "Componentes", valor: datosUT.total_componentes, color: "#1E3A5F", icon: "📦" },
+              { label: "Instalados", valor: datosUT.total_componentes - datosUT.en_falla, color: "#166534", icon: "✅" },
+              { label: "En falla", valor: datosUT.en_falla, color: "#C0392B", icon: "⚠️" },
+              { label: "Valor del sitio", valor: `$${datosUT.valor_total.toLocaleString("es-MX", { maximumFractionDigits: 0 })}`, color: "#D97706", icon: "💰" },
+            ].map((k, i) => (
+              <div key={i} style={{ background: "#FFFFFF", borderLeft: `4px solid ${k.color}`, borderRadius: 10, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: 22 }}>{k.icon}</div>
+                <div style={{ fontSize: 26, fontWeight: "bold", color: k.color, margin: "4px 0" }}>{k.valor}</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+              <h3 style={{ margin: "0 0 4px", color: "#1E3A5F", fontSize: 16 }}>{datosUT.ut}</h3>
+              <div style={{ color: "#64748B", fontSize: 13, marginBottom: 12 }}>{datosUT.vialidad} · {datosUT.proyecto}</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#F1F5F9" }}>
+                    {["Componente", "Marca/Modelo", "N° Serie", "Estado", "Costo"].map((h, i) => (
+                      <th key={i} style={{ padding: "6px 8px", textAlign: i > 2 ? "center" : "left", color: "#64748B", fontWeight: "bold" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(datosUT.componentes || []).map((c, i) => (
+                    <tr key={i} style={{ borderBottom: "0.5px solid #E2E8F0", background: i % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+                      <td style={{ padding: "7px 8px", color: "#0F172A" }}>{catIcon[c.categoria] || "📦"} {c.componente}</td>
+                      <td style={{ padding: "7px 8px", color: "#64748B" }}>{c.marca} / {c.modelo}</td>
+                      <td style={{ padding: "7px 8px", color: "#64748B", fontSize: 11 }}>{c.serie}</td>
+                      <td style={{ padding: "7px 8px", textAlign: "center" }}>
+                        <span style={{ background: c.estado === "Instalado" ? "#DCFCE7" : "#FEE2E2", color: c.estado === "Instalado" ? "#166534" : "#C0392B", padding: "2px 6px", borderRadius: 8, fontSize: 10 }}>{c.estado}</span>
+                      </td>
+                      <td style={{ padding: "7px 8px", textAlign: "right", color: "#D97706", fontWeight: "bold" }}>${c.costo_total.toLocaleString("es-MX", { maximumFractionDigits: 0 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+              <h3 style={{ margin: "0 0 12px", color: "#1E3A5F", fontSize: 15 }}>🔄 Movimientos</h3>
+              {(datosUT.movimientos || []).length === 0 ? (
+                <div style={{ color: "#94A3B8", textAlign: "center", padding: 20 }}>Sin movimientos registrados</div>
+              ) : (
+                (datosUT.movimientos || []).map((m, i) => (
+                  <div key={i} style={{ borderLeft: `3px solid ${tipoColor[m.tipo] || "#64748B"}`, padding: "8px 12px", background: "#F8FAFC", borderRadius: "0 6px 6px 0", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, fontWeight: "bold", color: "#0F172A" }}>{m.tipo}</span>
+                      <span style={{ fontSize: 11, color: "#64748B" }}>{m.fecha?.split("T")[0]}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{m.componente} · {m.tecnico}</div>
+                    {m.motivo && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, fontStyle: "italic" }}>{m.motivo}</div>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vista === "ut" && !datosUT && !loadingUT && !error && (
+        <div style={{ textAlign: "center", padding: 60, color: "#94A3B8" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+          <div style={{ fontSize: 18, fontWeight: "bold" }}>Busca una UT para ver su inventario</div>
+          <div style={{ fontSize: 14, marginTop: 8 }}>Escribe el código y presiona Enter o Buscar</div>
+        </div>
+      )}
+
+      {loading && <div style={{ textAlign: "center", color: "#94A3B8", padding: 40 }}>Cargando inventario...</div>}
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -477,6 +742,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/solar" element={<Solar solar={solar} loading={loading} />} />
         <Route path="/reflectores" element={<Reflectores reflectores={reflectores} loading={loading} />} />
         <Route path="/accesos" element={<Accesos token={token} proyectosUsuario={usuario?.proyectos || []} />} />
+        <Route path="/inventario" element={<Inventario token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
