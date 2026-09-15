@@ -101,6 +101,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/reflectores", label: "💡 Reflectores" },
     { path: "/accesos", label: "🔗 Accesos" },
     { path: "/inventario", label: "📦 Inventario" },
+    { path: "/mapas", label: "🗺️ Mapas" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -703,6 +704,83 @@ function Inventario({ token, proyectosUsuario }) {
   );
 }
 
+
+// ── Mapas ─────────────────────────────────────────────────
+function Mapas({ token, proyectosUsuario, usuario }) {
+  const [proyecto, setProyecto] = useState(proyectosUsuario[0] || "PUEBLA");
+  const [tipo, setTipo] = useState("camaras");
+  const API = "http://localhost:8000";
+
+  const MAPAS_DISPONIBLES = {
+    "PUEBLA": ["camaras", "red"],
+    "QRO": ["camaras"],
+    "EDOMEX": ["camaras", "red"],
+    "TLAXCALA": ["camaras"],
+    "SAN_ANDRES": ["camaras"],
+    "LEON": ["camaras"],
+  };
+
+  const tipoLabel = { camaras: "📍 Cámaras", red: "🔗 Red" };
+  const proyNombre = { PUEBLA: "Puebla", QRO: "Querétaro", EDOMEX: "Edo. México", TLAXCALA: "Tlaxcala", SAN_ANDRES: "San Andrés", LEON: "León" };
+
+  const proyectosDisp = ["PUEBLA", "QRO", "EDOMEX", "TLAXCALA", "SAN_ANDRES", "LEON"].filter(p => proyectosUsuario.includes(p));
+  const tiposDisp = MAPAS_DISPONIBLES[proyecto] || ["camaras"];
+  const mapaUrl = `${API}/mapas/${proyecto}/${tipo}?token=${token}`;
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h1 style={{ margin: 0, color: "#1E3A5F", fontSize: 22 }}>🗺️ Mapas interactivos</h1>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {proyectosDisp.map(p => (
+              <button key={p} onClick={() => { setProyecto(p); setTipo("camaras"); }} style={{
+                padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 12,
+                background: proyecto === p ? "#1E3A5F" : "#F1F5F9",
+                color: proyecto === p ? "#FFFFFF" : "#475569",
+              }}>{proyNombre[p] || p}</button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 32, background: "#E2E8F0" }}></div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {tiposDisp.map(t => (
+              <button key={t} onClick={() => setTipo(t)} style={{
+                padding: "8px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 12,
+                background: tipo === t ? "#C0392B" : "#F1F5F9",
+                color: tipo === t ? "#FFFFFF" : "#475569",
+              }}>{tipoLabel[t]}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: "#FFFFFF", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+        <iframe
+          key={mapaUrl}
+          src={mapaUrl}
+          style={{ width: "100%", height: "600px", border: "none", display: "block" }}
+          title={`Mapa ${proyecto} ${tipo}`}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+          <div style={{ width: 10, height: 10, background: "#22C55E", borderRadius: "50%" }}></div> OK
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+          <div style={{ width: 10, height: 10, background: "#EF4444", borderRadius: "50%" }}></div> Crítica
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#475569" }}>
+          <div style={{ width: 10, height: 10, background: "#F59E0B", borderRadius: "50%" }}></div> Alerta
+        </div>
+        <div style={{ marginLeft: "auto", fontSize: 12, color: "#94A3B8" }}>
+          {proyNombre[proyecto]} · {tipoLabel[tipo]}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -743,6 +821,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/reflectores" element={<Reflectores reflectores={reflectores} loading={loading} />} />
         <Route path="/accesos" element={<Accesos token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="/inventario" element={<Inventario token={token} proyectosUsuario={usuario?.proyectos || []} />} />
+        <Route path="/mapas" element={<Mapas token={token} proyectosUsuario={usuario?.proyectos || []} usuario={usuario} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
