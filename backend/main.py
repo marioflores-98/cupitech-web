@@ -13,6 +13,8 @@ import sys
 import threading
 import time
 
+from dotenv import load_dotenv
+load_dotenv()
 sys.path.append(r'C:\Users\Usuario\asistente-mantenimiento')
 
 app = FastAPI(title="CupiTech API", version="1.0.0")
@@ -292,6 +294,78 @@ def get_inventario_ut_endpoint(proyecto: str, ut: str, authorization: str = Head
         raise HTTPException(status_code=404, detail=error)
     resultado["movimientos"] = get_movimientos(ut=ut)
     return resultado
+
+# ── Chat con CupiTech ─────────────────────────────────────
+from database import (init_db, crear_conversacion, get_conversaciones,
+                      get_mensajes, agregar_mensaje, actualizar_titulo_conversacion,
+                      eliminar_conversacion)
+import anthropic as _anthropic
+
+init_db()
+_claude = _anthropic.Anthropic()
+
+SYSTEM_CHAT = """Eres CupiTech, el asistente técnico de mantenimiento de Autotraffic.
+Ayudas con diagnóstico de fallas en cámaras, procedimientos técnicos, accesos remotos,
+inventario y cualquier tema relacionado con el mantenimiento de sistemas de videovigilancia.
+Responde en español, de forma clara y práctica. Para técnicos da instrucciones paso a paso.
+Si no tienes información específica, dilo claramente."""
+
+class ChatMsg(BaseModel):
+    conversacion_id: int
+    mensaje: str
+
+class NuevaConversacion(BaseModel):
+    titulo: str = "Nueva conversación"
+
+@app.get("/api/chat/conversaciones")
+def listar_conversaciones(authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    return {"conversaciones": get_conversaciones(sesion["correo"])}
+
+@app.post("/api/chat/conversaciones")
+def nueva_conversacion(body: NuevaConversacion, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    id_ = crear_conversacion(sesion["correo"], body.titulo)
+    return {"id": id_}
+
+@app.delete("/api/chat/conversaciones/{conv_id}")
+def borrar_conversacion(conv_id: int, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    eliminar_conversacion(conv_id, sesion["correo"])
+    return {"ok": True}
+
+@app.get("/api/chat/{conv_id}/mensajes")
+def listar_mensajes(conv_id: int, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    msgs = get_mensajes(conv_id, sesion["correo"])
+    if msgs is None:
+        raise HTTPException(status_code=403, detail="Sin acceso")
+    return {"mensajes": msgs}
+
+@app.post("/api/chat/{conv_id}/mensajes")
+def enviar_mensaje(conv_id: int, body: ChatMsg, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    msgs = get_mensajes(conv_id, sesion["correo"])
+    if msgs is None:
+        raise HTTPException(status_code=403, detail="Sin acceso")
+    agregar_mensaje(conv_id, "user", body.mensaje)
+    historial = [{"role": m["rol"], "content": m["contenido"]} for m in msgs]
+    historial.append({"role": "user", "content": body.mensaje})
+    try:
+        resp = _claude.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1000,
+            system=SYSTEM_CHAT,
+            messages=historial
+        )
+        respuesta = resp.content[0].text
+    except Exception as e:
+        respuesta = f"⚠️ Error al conectar con CupiTech: {str(e)}"
+    agregar_mensaje(conv_id, "assistant", respuesta)
+    if len(msgs) == 0:
+        titulo = body.mensaje[:50] + ("..." if len(body.mensaje) > 50 else "")
+        actualizar_titulo_conversacion(conv_id, titulo)
+    return {"respuesta": respuesta}
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

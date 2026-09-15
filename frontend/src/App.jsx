@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 
 const API = "http://localhost:8000";
@@ -102,6 +102,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/accesos", label: "🔗 Accesos" },
     { path: "/inventario", label: "📦 Inventario" },
     { path: "/mapas", label: "🗺️ Mapas" },
+    { path: "/chat", label: "💬 Chat" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -781,6 +782,214 @@ function Mapas({ token, proyectosUsuario, usuario }) {
   );
 }
 
+
+// ── Chat ──────────────────────────────────────────────────
+function Chat({ token, usuario }) {
+  const [conversaciones, setConversaciones] = useState([]);
+  const [convActual, setConvActual] = useState(null);
+  const [mensajes, setMensajes] = useState([]);
+  const [texto, setTexto] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingConv, setLoadingConv] = useState(true);
+  const mensajesRef = useRef(null);
+  const API = "http://localhost:8000";
+  const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+
+  useEffect(() => { cargarConversaciones(); }, []);
+  useEffect(() => {
+    if (mensajesRef.current) {
+      mensajesRef.current.scrollTop = mensajesRef.current.scrollHeight;
+    }
+  }, [mensajes]);
+
+  async function cargarConversaciones() {
+    try {
+      const r = await fetch(`${API}/api/chat/conversaciones`, { headers });
+      const data = await r.json();
+      setConversaciones(data.conversaciones || []);
+    } catch (e) { console.error(e); }
+    finally { setLoadingConv(false); }
+  }
+
+  async function nuevaConversacion() {
+    const r = await fetch(`${API}/api/chat/conversaciones`, {
+      method: "POST", headers,
+      body: JSON.stringify({ titulo: "Nueva conversación" })
+    });
+    const data = await r.json();
+    setConvActual(data.id);
+    setMensajes([]);
+    await cargarConversaciones();
+  }
+
+  async function seleccionarConversacion(id) {
+    setConvActual(id);
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/chat/${id}/mensajes`, { headers });
+      const data = await r.json();
+      setMensajes(data.mensajes || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+
+  async function borrarConversacion(id, e) {
+    e.stopPropagation();
+    await fetch(`${API}/api/chat/conversaciones/${id}`, { method: "DELETE", headers });
+    if (convActual === id) { setConvActual(null); setMensajes([]); }
+    await cargarConversaciones();
+  }
+
+  async function enviar() {
+    if (!texto.trim() || !convActual || loading) return;
+    const msg = texto.trim();
+    setTexto("");
+    setMensajes(prev => [...prev, { rol: "user", contenido: msg, created_at: new Date().toISOString() }]);
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/chat/${convActual}/mensajes`, {
+        method: "POST", headers,
+        body: JSON.stringify({ conversacion_id: convActual, mensaje: msg })
+      });
+      const data = await r.json();
+      setMensajes(prev => [...prev, { rol: "assistant", contenido: data.respuesta, created_at: new Date().toISOString() }]);
+      await cargarConversaciones();
+    } catch (e) {
+      setMensajes(prev => [...prev, { rol: "assistant", contenido: "⚠️ Error de conexión. Intenta de nuevo.", created_at: new Date().toISOString() }]);
+    } finally { setLoading(false); }
+  }
+
+  const iniciales = (nombre) => nombre?.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase() || "U";
+
+  return (
+    <div style={{ padding: 24, height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
+      <h1 style={{ margin: "0 0 16px", color: "#1E3A5F", fontSize: 22 }}>💬 Chat con CupiTech</h1>
+
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, flex: 1, overflow: "hidden" }}>
+
+        {/* Sidebar */}
+        <div style={{ background: "#FFFFFF", borderRadius: 12, border: "0.5px solid #E2E8F0", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: 14, borderBottom: "0.5px solid #E2E8F0" }}>
+            <button onClick={nuevaConversacion} style={{
+              width: "100%", padding: "8px", background: "#C0392B", color: "#fff",
+              border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: "bold"
+            }}>+ Nueva conversación</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+            {loadingConv ? (
+              <div style={{ color: "#94A3B8", fontSize: 12, textAlign: "center", padding: 20 }}>Cargando...</div>
+            ) : conversaciones.length === 0 ? (
+              <div style={{ color: "#94A3B8", fontSize: 12, textAlign: "center", padding: 20 }}>Sin conversaciones</div>
+            ) : conversaciones.map(conv => (
+              <div key={conv.id} onClick={() => seleccionarConversacion(conv.id)} style={{
+                padding: "10px 12px", borderRadius: 8, marginBottom: 4, cursor: "pointer",
+                background: convActual === conv.id ? "#F1F5F9" : "transparent",
+                borderLeft: convActual === conv.id ? "3px solid #C0392B" : "3px solid transparent",
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start"
+              }}>
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <div style={{ fontSize: 12, fontWeight: "bold", color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {conv.titulo || "Nueva conversación"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                    {conv.total_mensajes} mensajes
+                  </div>
+                </div>
+                <button onClick={(e) => borrarConversacion(conv.id, e)} style={{
+                  background: "none", border: "none", color: "#94A3B8", cursor: "pointer",
+                  fontSize: 14, padding: "0 0 0 6px", flexShrink: 0
+                }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat area */}
+        <div style={{ background: "#FFFFFF", borderRadius: 12, border: "0.5px solid #E2E8F0", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {!convActual ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🤖</div>
+              <div style={{ fontSize: 18, fontWeight: "bold", color: "#1E3A5F", marginBottom: 8 }}>CupiTech</div>
+              <div style={{ fontSize: 14, marginBottom: 20 }}>Asistente técnico de Autotraffic</div>
+              <button onClick={nuevaConversacion} style={{
+                padding: "10px 24px", background: "#C0392B", color: "#fff",
+                border: "none", borderRadius: 8, fontSize: 14, cursor: "pointer", fontWeight: "bold"
+              }}>Iniciar conversación</button>
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div style={{ padding: "12px 20px", borderBottom: "0.5px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 34, height: 34, background: "#1E3A5F", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🤖</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: "bold", color: "#0F172A" }}>CupiTech</div>
+                  <div style={{ fontSize: 11, color: "#22C55E" }}>● Asistente técnico Autotraffic</div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div ref={mensajesRef} style={{ flex: 1, overflowY: "auto", padding: 20, background: "#F8FAFC", display: "flex", flexDirection: "column", gap: 14 }}>
+                {mensajes.length === 0 && !loading && (
+                  <div style={{ textAlign: "center", color: "#94A3B8", padding: 20, fontSize: 13 }}>
+                    Escribe tu primera pregunta...
+                  </div>
+                )}
+                {mensajes.map((m, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, flexDirection: m.rol === "user" ? "row-reverse" : "row", alignItems: "flex-start" }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                      background: m.rol === "user" ? "#C0392B" : "#1E3A5F",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: m.rol === "user" ? 11 : 14, color: "#fff", fontWeight: "bold"
+                    }}>
+                      {m.rol === "user" ? iniciales(usuario?.nombre) : "🤖"}
+                    </div>
+                    <div style={{
+                      background: m.rol === "user" ? "#1E3A5F" : "#FFFFFF",
+                      color: m.rol === "user" ? "#FFFFFF" : "#0F172A",
+                      borderRadius: m.rol === "user" ? "12px 0 12px 12px" : "0 12px 12px 12px",
+                      padding: "10px 14px", maxWidth: "75%",
+                      border: m.rol === "assistant" ? "0.5px solid #E2E8F0" : "none",
+                      fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap"
+                    }}>
+                      {m.contenido}
+                    </div>
+                  </div>
+                ))}
+                {loading && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1E3A5F", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🤖</div>
+                    <div style={{ background: "#FFFFFF", border: "0.5px solid #E2E8F0", borderRadius: "0 12px 12px 12px", padding: "10px 14px", color: "#94A3B8", fontSize: 13 }}>
+                      Pensando...
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div style={{ padding: 14, borderTop: "0.5px solid #E2E8F0", display: "flex", gap: 8 }}>
+                <input
+                  value={texto}
+                  onChange={e => setTexto(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviar()}
+                  placeholder="Escribe tu pregunta..."
+                  disabled={loading}
+                  style={{ flex: 1, padding: "10px 16px", borderRadius: 24, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none" }}
+                />
+                <button onClick={enviar} disabled={loading || !texto.trim()} style={{
+                  width: 40, height: 40, background: loading ? "#94A3B8" : "#C0392B",
+                  border: "none", borderRadius: "50%", cursor: "pointer", color: "#fff",
+                  fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center"
+                }}>➤</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -822,6 +1031,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/accesos" element={<Accesos token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="/inventario" element={<Inventario token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="/mapas" element={<Mapas token={token} proyectosUsuario={usuario?.proyectos || []} usuario={usuario} />} />
+        <Route path="/chat" element={<Chat token={token} usuario={usuario} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
