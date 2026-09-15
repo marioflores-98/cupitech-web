@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cámaras ANPR — León</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  #header { background: #1e293b; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #E74C3C; flex-shrink: 0; }
+  #header-left h1 { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+  #header-left p { font-size: 11px; color: #64748b; margin-top: 1px; }
+  #contador { font-size: 12px; color: #E74C3C; font-weight: 700; background: #E74C3C20; padding: 4px 10px; border-radius: 12px; border: 1px solid #E74C3C40; }
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #sidebar { width: 280px; background: #1e293b; display: flex; flex-direction: column; border-right: 1px solid #334155; flex-shrink: 0; }
+  #search-wrap { padding: 10px 12px; border-bottom: 1px solid #334155; }
+  #search { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 13px; width: 100%; outline: none; }
+  #search::placeholder { color: #475569; }
+  #search:focus { border-color: #E74C3C; }
+  #lista-wrap { flex: 1; overflow-y: auto; }
+  #lista-wrap::-webkit-scrollbar { width: 4px; }
+  #lista-wrap::-webkit-scrollbar-track { background: #0f172a; }
+  #lista-wrap::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  .lista-item { padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #1e293b; display: flex; align-items: flex-start; gap: 8px; transition: background 0.15s; }
+  .lista-item:hover { background: #0f172a; }
+  .lista-item.activo { background: #E74C3C20; border-left: 3px solid #E74C3C; }
+  .lista-dot { width: 8px; height: 8px; border-radius: 50%; background: #E74C3C; margin-top: 4px; flex-shrink: 0; }
+  .lista-solar { background: #f59e0b; }
+  .lista-nombre { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+  .lista-via { font-size: 11px; color: #64748b; margin-top: 1px; line-height: 1.3; }
+  .no-results { padding: 16px; text-align: center; color: #475569; font-size: 13px; }
+  #map { flex: 1; }
+  .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); min-width: 220px; }
+  .leaflet-popup-content { margin: 12px 14px; }
+  .leaflet-popup-tip-container { display: none; }
+  .leaflet-popup-close-button { color: #64748b !important; font-size: 18px !important; top: 6px !important; right: 8px !important; }
+  .popup-title { font-size: 15px; font-weight: 800; color: #f1f5f9; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #334155; }
+  .popup-row { display: flex; gap: 8px; margin: 4px 0; font-size: 12px; }
+  .popup-label { color: #64748b; min-width: 80px; flex-shrink: 0; }
+  .popup-value { color: #e2e8f0; font-weight: 500; }
+  .popup-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-top: 6px; background: #E74C3C20; color: #E74C3C; border: 1px solid #E74C3C40; }
+  .popup-badge.solar { background: #f59e0b20; color: #f59e0b; border-color: #f59e0b40; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div id="header-left">
+    <h1>📷 Cámaras ANPR — León</h1>
+    <p>Autotraffic — Sistema de monitoreo</p>
+  </div>
+  <span id="contador">36 cámaras</span>
+</div>
+<div id="main">
+  <div id="sidebar">
+    <div id="search-wrap">
+      <input id="search" type="text" placeholder="🔍 Buscar UT o vialidad..." oninput="buscar(this.value)">
+    </div>
+    <div id="lista-wrap">
+      <div id="lista"></div>
+      <div class="no-results" id="no-results" style="display:none">Sin resultados</div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+<script>
+const puntos = [{"nombre": "UTL001", "lat": 21.14425, "lon": -101.69531, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Paseo de los Insurgentes", "altura": "Frente al No. 902, Col. Jardines del Moral", "sentido": "Oriente - Poniente", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL002", "lat": 21.14425, "lon": -101.69531, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Paseo de los Insurgentes", "altura": "Frente al No. 1101, Col. Lomas de la Trinidad", "sentido": "Poniente - Oriente", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL003", "lat": 21.15841, "lon": -101.72257, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Paseo de los Insurgentes", "altura": "Frente al No. 3355, Predio Cerro Gordo", "sentido": "Norte - Sur", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL004", "lat": 21.15843, "lon": -101.72244, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Paseo de los Insurgentes", "altura": "Frente al No. 2760, Fracc. Villas Santa Fe", "sentido": "Sur - Norte", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL005A", "lat": 21.16702, "lon": -101.65268, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 703, Col. Brisas del Lago", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL005B", "lat": 21.16702, "lon": -101.65268, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 703, Col. Brisas del Lago", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL006A", "lat": 21.16674, "lon": -101.65278, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "A 125 metros del acceso al Fracc. Punta Nogal", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL006B", "lat": 21.16674, "lon": -101.65278, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "A 125 metros del acceso al Fracc. Punta Nogal", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL007A", "lat": 21.13501, "lon": -101.63107, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 3452", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL007B", "lat": 21.13501, "lon": -101.63107, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 3452", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL008A", "lat": 21.13489, "lon": -101.63079, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 7745, Fracciones de Mesa de Medina", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL008B", "lat": 21.13489, "lon": -101.63079, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente al No. 7745, Fracciones de Mesa de Medina", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL009A", "lat": 21.13292, "lon": -101.61141, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan Alonso de Torres", "altura": "A 315 metros del Camino a Alfaro, Fracc. Sierra Nogal", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL009B", "lat": 21.13292, "lon": -101.61141, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan Alonso de Torres", "altura": "A 315 metros del Camino a Alfaro, Fracc. Sierra Nogal", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL010A", "lat": 21013311.0, "lon": -101.61123, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan Alonso de Torres", "altura": "Frente al No. 3513, Col. Esperanza de Alfaro", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL010B", "lat": 21013311.0, "lon": -101.61123, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan Alonso de Torres", "altura": "Frente al No. 3513, Col. Esperanza de Alfaro", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL011A", "lat": 21.10818, "lon": -101.62435, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente a Av. Cardadores, Fracc. Industrial Julián de Obregón", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL011B", "lat": 21.10818, "lon": -101.62435, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "Frente a Av. Cardadores, Fracc. Industrial Julián de Obregón", "sentido": "Sur - Norte", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL012A", "lat": 21.10867, "lon": -101.62465, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "A 90 metros de calle San José del Potrero, Col. Industrial Brisas del Campo", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL012B", "lat": 21.10867, "lon": -101.62465, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. José María Morelos", "altura": "A 90 metros de calle San José del Potrero, Col. Industrial Brisas del Campo", "sentido": "Norte - Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL013A", "lat": 21.10775, "lon": -101.60991, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Delta", "altura": "A 330 metros de Av. Vía de los Girasoles, Col. Agua Azul Norte", "sentido": "Sur - Norte", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL013B", "lat": 21.10775, "lon": -101.60991, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Delta", "altura": "A 330 metros de Av. Vía de los Girasoles, Col. Agua Azul Norte", "sentido": "Sur - Norte", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL014A", "lat": 21.10775, "lon": -101.60991, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Delta", "altura": "A 400 metros de Blvd. La Luz, Col. Agua Azul Norte", "sentido": "Norte - Sur", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL014B", "lat": 21.10775, "lon": -101.60991, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Delta", "altura": "A 400 metros de Blvd. La Luz, Col. Agua Azul Norte", "sentido": "Norte - Sur", "limite": "50", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL015A", "lat": 21.06755, "lon": -101.5924, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Aeropuerto", "altura": "Frente al 2438, Col. Campestre San José", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL015B", "lat": 21.06755, "lon": -101.5924, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Aeropuerto", "altura": "Frente al 2438, Col. Campestre San José", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL016A", "lat": 21.06758, "lon": -101.59275, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Aeropuerto", "altura": "Frente al 2436, Col. Campestre San José", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL016B", "lat": 21.06758, "lon": -101.59275, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Aeropuerto", "altura": "Frente al 2436, Col. Campestre San José", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL017A", "lat": 21.07447, "lon": -101.64881, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Timoteo Lozano", "altura": "Frente al No. 3115, Col. El Granjero Iveg", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL017B", "lat": 21.07447, "lon": -101.64881, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Timoteo Lozano", "altura": "Frente al No. 3115, Col. El Granjero Iveg", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL018A", "lat": 21.07447, "lon": -101.6488, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Timoteo Lozano", "altura": "Frente al No. 3115, Col. El Granjero Iveg", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL018B", "lat": 21.07447, "lon": -101.6488, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Timoteo Lozano", "altura": "Frente al No. 3115, Col. El Granjero Iveg", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL019A", "lat": 21.09219, "lon": -101.73363, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan José Torres Landa", "altura": "A 120 metros de calle Arroyo Seco, Col. Arroyo Hondo", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL019B", "lat": 21.09219, "lon": -101.73363, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan José Torres Landa", "altura": "A 120 metros de calle Arroyo Seco, Col. Arroyo Hondo", "sentido": "Poniente - Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL020A", "lat": 21.09282, "lon": -101.73298, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan José Torres Landa", "altura": "A 330 metros de calle Monte de Cristo, Col. Monte de Cristo", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "UTL020B", "lat": 21.09282, "lon": -101.73298, "proyecto": "LEON", "color": "#2ECC71", "vialidad": "Blvd. Juan José Torres Landa", "altura": "A 330 metros de calle Monte de Cristo, Col. Monte de Cristo", "sentido": "Oriente - Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}];
+const COLOR = '#E74C3C';
+
+const lats = puntos.map(p => p.lat);
+const lons = puntos.map(p => p.lon);
+const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+
+const map = L.map('map', { center: [centerLat, centerLon], zoom: 11, zoomControl: true });
+L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 18 }).addTo(map);
+
+function crearIcono(solar = false, size = 10) {
+  const bg = solar ? '#f59e0b' : COLOR;
+  return L.divIcon({ className: '', html: `<div style="width:${size}px;height:${size}px;background:${bg};border:2px solid rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);"></div>`, iconSize: [size, size], iconAnchor: [size/2, size/2], popupAnchor: [0, -size] });
+}
+
+const markers = [];
+const listaEl = document.getElementById('lista');
+
+puntos.forEach((p, i) => {
+  const esSolar = p.alimentacion && p.alimentacion.toLowerCase().includes('solar');
+  const marker = L.marker([p.lat, p.lon], { icon: crearIcono(esSolar) });
+  
+  marker.bindPopup(`
+    <div class="popup-title">📷 ${p.nombre}</div>
+    ${p.vialidad ? `<div class="popup-row"><span class="popup-label">Vialidad</span><span class="popup-value">${p.vialidad}</span></div>` : ''}
+    ${p.altura ? `<div class="popup-row"><span class="popup-label">Ubicación</span><span class="popup-value">${p.altura}</span></div>` : ''}
+    ${p.sentido ? `<div class="popup-row"><span class="popup-label">Sentido</span><span class="popup-value">${p.sentido}</span></div>` : ''}
+    ${p.limite ? `<div class="popup-row"><span class="popup-label">Límite</span><span class="popup-value">${p.limite} km/h</span></div>` : ''}
+    <div class="popup-row"><span class="popup-label">Coordenadas</span><span class="popup-value" style="font-family:monospace;font-size:11px;">${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</span></div>
+    ${p.alimentacion ? `<div class="popup-badge ${esSolar ? 'solar' : ''}">${esSolar ? '☀️' : '⚡'} ${p.alimentacion}</div>` : ''}
+  `, { maxWidth: 300 });
+
+  marker.addTo(map);
+  marker.idx = i;
+  markers.push(marker);
+
+  // Item en lista lateral
+  const item = document.createElement('div');
+  item.className = 'lista-item';
+  item.dataset.idx = i;
+  item.dataset.nombre = p.nombre.toLowerCase();
+  item.dataset.via = (p.vialidad || '').toLowerCase();
+  item.innerHTML = `
+    <div class="lista-dot ${esSolar ? 'lista-solar' : ''}"></div>
+    <div>
+      <div class="lista-nombre">${p.nombre}</div>
+      <div class="lista-via">${p.vialidad || ''} ${p.altura ? '— ' + p.altura : ''}</div>
+    </div>`;
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.lista-item').forEach(el => el.classList.remove('activo'));
+    item.classList.add('activo');
+    map.setView([p.lat, p.lon], 17);
+    marker.openPopup();
+  });
+  listaEl.appendChild(item);
+});
+
+function buscar(q) {
+  const query = q.toLowerCase().trim();
+  let visibles = 0;
+  document.querySelectorAll('.lista-item').forEach(item => {
+    const idx = parseInt(item.dataset.idx);
+    const coincide = !query || item.dataset.nombre.includes(query) || item.dataset.via.includes(query);
+    item.style.display = coincide ? '' : 'none';
+    if (coincide) {
+      map.addLayer(markers[idx]);
+      visibles++;
+    } else {
+      map.removeLayer(markers[idx]);
+    }
+  });
+  document.getElementById('contador').textContent = visibles + ' cámaras';
+  document.getElementById('no-results').style.display = visibles === 0 ? '' : 'none';
+  
+  // Si hay resultado exacto, centrar el mapa
+  if (query.length >= 3) {
+    const exacto = document.querySelector(`.lista-item[data-nombre="${query}"]`);
+    if (exacto) {
+      const idx = parseInt(exacto.dataset.idx);
+      const p = puntos[idx];
+      map.setView([p.lat, p.lon], 17);
+      markers[idx].openPopup();
+    }
+  }
+}
+</script>
+</body>
+</html>

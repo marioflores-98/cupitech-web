@@ -3,6 +3,9 @@ CupiTech Web — Backend API v5
 Con autenticación, sesiones y filtro por proyecto
 """
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import pathlib
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -198,11 +201,62 @@ def get_reflectores(authorization: str = Header(None)):
     else:
         reflectores = []
     return {"reflectores": reflectores, "total": len(reflectores)}
+
+
+# ── Mapas ─────────────────────────────────────────────────
+MAPAS_DIR = pathlib.Path(__file__).parent / "mapas"
+
+MAPAS_CONFIG = {
+    "PUEBLA": {
+        "camaras": "mapa_puebla.html",
+        "red": "mapa_red_puebla.html",
+    },
+    "QRO": {
+        "camaras": "mapa_queretaro.html",
+        "red": "mapa_red_queretaro.html" if (MAPAS_DIR / "mapa_red_queretaro.html").exists() else "mapa_queretaro.html",
+    },
+    "EDOMEX": {
+        "camaras": "mapa_mexibus.html",
+        "red": "mapa_trolebus.html",
+    },
+    "TLAXCALA": {
+        "camaras": "mapa_tlaxcala.html",
+        "red": "mapa_tlaxcala.html",
+    },
+    "SAN_ANDRES": {
+        "camaras": "mapa_sanandres.html",
+        "red": "mapa_sanandres.html",
+    },
+    "LEON": {
+        "camaras": "mapa_leon.html",
+        "red": "mapa_leon.html",
+    },
+}
+
+@app.get("/api/mapas")
+def get_mapas_disponibles(authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    disponibles = {}
+    for proyecto in sesion["proyectos"]:
+        if proyecto in MAPAS_CONFIG:
+            disponibles[proyecto] = list(MAPAS_CONFIG[proyecto].keys())
+    return {"mapas": disponibles}
+
+@app.get("/mapas/{proyecto}/{tipo}")
+def get_mapa(proyecto: str, tipo: str):
+    config = MAPAS_CONFIG.get(proyecto.upper(), {})
+    archivo = config.get(tipo.lower())
+    if not archivo:
+        raise HTTPException(status_code=404, detail="Mapa no encontrado")
+    ruta = MAPAS_DIR / archivo
+    if not ruta.exists():
+        raise HTTPException(status_code=404, detail=f"Archivo {archivo} no encontrado")
+    return FileResponse(ruta, media_type="text/html")
 @app.get("/api/accesos/{proyecto}/{ut}")
 def get_acceso(proyecto: str, ut: str, authorization: str = Header(None)):
     sesion = get_sesion_actual(authorization)
     if proyecto.upper() not in sesion["proyectos"]:
-        raise HTTPException(status_code=403, detail="Sin acceso a este proyecto")
+        raise HTTPException(status_code=403, detail="Sin acceso")
     from accesos_api import buscar_acceso
     resultado, error = buscar_acceso(ut, proyecto.upper())
     if error:
@@ -213,9 +267,10 @@ def get_acceso(proyecto: str, ut: str, authorization: str = Header(None)):
 def get_uts(proyecto: str, authorization: str = Header(None)):
     sesion = get_sesion_actual(authorization)
     if proyecto.upper() not in sesion["proyectos"]:
-        raise HTTPException(status_code=403, detail="Sin acceso a este proyecto")
+        raise HTTPException(status_code=403, detail="Sin acceso")
     from accesos_api import listar_uts
     return {"uts": listar_uts(proyecto.upper()), "proyecto": proyecto}
+
 @app.get("/api/inventario/{proyecto}")
 def get_inventario_proyecto(proyecto: str, authorization: str = Header(None)):
     sesion = get_sesion_actual(authorization)

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cámaras ANPR — Querétaro</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  #header { background: #1e293b; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #E74C3C; flex-shrink: 0; }
+  #header-left h1 { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+  #header-left p { font-size: 11px; color: #64748b; margin-top: 1px; }
+  #contador { font-size: 12px; color: #E74C3C; font-weight: 700; background: #E74C3C20; padding: 4px 10px; border-radius: 12px; border: 1px solid #E74C3C40; }
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #sidebar { width: 280px; background: #1e293b; display: flex; flex-direction: column; border-right: 1px solid #334155; flex-shrink: 0; }
+  #search-wrap { padding: 10px 12px; border-bottom: 1px solid #334155; }
+  #search { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 13px; width: 100%; outline: none; }
+  #search::placeholder { color: #475569; }
+  #search:focus { border-color: #E74C3C; }
+  #lista-wrap { flex: 1; overflow-y: auto; }
+  #lista-wrap::-webkit-scrollbar { width: 4px; }
+  #lista-wrap::-webkit-scrollbar-track { background: #0f172a; }
+  #lista-wrap::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  .lista-item { padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #1e293b; display: flex; align-items: flex-start; gap: 8px; transition: background 0.15s; }
+  .lista-item:hover { background: #0f172a; }
+  .lista-item.activo { background: #E74C3C20; border-left: 3px solid #E74C3C; }
+  .lista-dot { width: 8px; height: 8px; border-radius: 50%; background: #E74C3C; margin-top: 4px; flex-shrink: 0; }
+  .lista-solar { background: #f59e0b; }
+  .lista-nombre { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+  .lista-via { font-size: 11px; color: #64748b; margin-top: 1px; line-height: 1.3; }
+  .no-results { padding: 16px; text-align: center; color: #475569; font-size: 13px; }
+  #map { flex: 1; }
+  .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); min-width: 220px; }
+  .leaflet-popup-content { margin: 12px 14px; }
+  .leaflet-popup-tip-container { display: none; }
+  .leaflet-popup-close-button { color: #64748b !important; font-size: 18px !important; top: 6px !important; right: 8px !important; }
+  .popup-title { font-size: 15px; font-weight: 800; color: #f1f5f9; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #334155; }
+  .popup-row { display: flex; gap: 8px; margin: 4px 0; font-size: 12px; }
+  .popup-label { color: #64748b; min-width: 80px; flex-shrink: 0; }
+  .popup-value { color: #e2e8f0; font-weight: 500; }
+  .popup-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-top: 6px; background: #E74C3C20; color: #E74C3C; border: 1px solid #E74C3C40; }
+  .popup-badge.solar { background: #f59e0b20; color: #f59e0b; border-color: #f59e0b40; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div id="header-left">
+    <h1>📷 Cámaras ANPR — Querétaro</h1>
+    <p>Autotraffic — Sistema de monitoreo</p>
+  </div>
+  <span id="contador">22 cámaras</span>
+</div>
+<div id="main">
+  <div id="sidebar">
+    <div id="search-wrap">
+      <input id="search" type="text" placeholder="🔍 Buscar UT o vialidad..." oninput="buscar(this.value)">
+    </div>
+    <div id="lista-wrap">
+      <div id="lista"></div>
+      <div class="no-results" id="no-results" style="display:none">Sin resultados</div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+<script>
+const puntos = [{"nombre": "AJS02000E_A", "lat": 20.62459, "lon": -100.38055, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "HITO", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS02000E_B", "lat": 20.62459, "lon": -100.38055, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "HITO", "sentido": "Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS02800W_A", "lat": 20.62606, "lon": -100.37291, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Facultad de Filosofía", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS02800W_B", "lat": 20.62606, "lon": -100.37291, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Facultad de Filosofía", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS04900E_A", "lat": 20.63401, "lon": -100.35506, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Plaza Paseo Queretaro", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS04900E_B", "lat": 20.63401, "lon": -100.35506, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Plaza Paseo Queretaro", "sentido": "Oriente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS04900W_A", "lat": 20.63378, "lon": -100.35471, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Plaza Paseo Queretaro", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS04900W_B", "lat": 20.63378, "lon": -100.35471, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Plaza Paseo Queretaro", "sentido": "Poniente", "limite": "60", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS06900S", "lat": 20.64483, "lon": -100.34424, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Entronque Cto. Universidades", "sentido": "Sur", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS14750W_A", "lat": 20.66629, "lon": -100.39786, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Agencia Audi", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS14750W_B", "lat": 20.66629, "lon": -100.39786, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Agencia Audi", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS16800E_A", "lat": 20.67205, "lon": -100.41161, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Colonia El Salitre", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS16800E_B", "lat": 20.67205, "lon": -100.41161, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Colonia El Salitre", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS22350E_A", "lat": 20.69027, "lon": -100.44528, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "HomeDepot", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS22350E_B", "lat": 20.69027, "lon": -100.44528, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "HomeDepot", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS22700E", "lat": 20.68385, "lon": -100.46925, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "El Nabo", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "AJS27400W_A", "lat": 20.68173, "lon": -100.49168, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Relleno Sanitario", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "AJS27400W_B", "lat": 20.68173, "lon": -100.49168, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Anillo Vial Fray Junípero Serra", "altura": "Relleno Sanitario", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "CUK03700E", "lat": 20.66098, "lon": -100.32134, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Circuito Universidades", "altura": "Constructora Zakia", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "CUK03800W", "lat": 20.66161, "lon": -100.32103, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Circuito Universidades", "altura": "Constructora Zakia", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Panel Solar"}, {"nombre": "CUK08700E", "lat": 20.66551, "lon": -100.32659, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Circuito Universidades", "altura": "Zarú Constructora", "sentido": "Oriente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}, {"nombre": "CUK10100W", "lat": 20.66249, "lon": -100.34039, "proyecto": "QUERETARO", "color": "#F39C12", "vialidad": "Circuito Universidades", "altura": "Calle Jaguar", "sentido": "Poniente", "limite": "80", "marca": "ADAPTATIVE RECOGNITION", "alimentacion": "Transformador de distribución"}];
+const COLOR = '#E74C3C';
+
+const lats = puntos.map(p => p.lat);
+const lons = puntos.map(p => p.lon);
+const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+
+const map = L.map('map', { center: [centerLat, centerLon], zoom: 11, zoomControl: true });
+L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 18 }).addTo(map);
+
+function crearIcono(solar = false, size = 10) {
+  const bg = solar ? '#f59e0b' : COLOR;
+  return L.divIcon({ className: '', html: `<div style="width:${size}px;height:${size}px;background:${bg};border:2px solid rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.6);"></div>`, iconSize: [size, size], iconAnchor: [size/2, size/2], popupAnchor: [0, -size] });
+}
+
+const markers = [];
+const listaEl = document.getElementById('lista');
+
+puntos.forEach((p, i) => {
+  const esSolar = p.alimentacion && p.alimentacion.toLowerCase().includes('solar');
+  const marker = L.marker([p.lat, p.lon], { icon: crearIcono(esSolar) });
+  
+  marker.bindPopup(`
+    <div class="popup-title">📷 ${p.nombre}</div>
+    ${p.vialidad ? `<div class="popup-row"><span class="popup-label">Vialidad</span><span class="popup-value">${p.vialidad}</span></div>` : ''}
+    ${p.altura ? `<div class="popup-row"><span class="popup-label">Ubicación</span><span class="popup-value">${p.altura}</span></div>` : ''}
+    ${p.sentido ? `<div class="popup-row"><span class="popup-label">Sentido</span><span class="popup-value">${p.sentido}</span></div>` : ''}
+    ${p.limite ? `<div class="popup-row"><span class="popup-label">Límite</span><span class="popup-value">${p.limite} km/h</span></div>` : ''}
+    <div class="popup-row"><span class="popup-label">Coordenadas</span><span class="popup-value" style="font-family:monospace;font-size:11px;">${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</span></div>
+    ${p.alimentacion ? `<div class="popup-badge ${esSolar ? 'solar' : ''}">${esSolar ? '☀️' : '⚡'} ${p.alimentacion}</div>` : ''}
+  `, { maxWidth: 300 });
+
+  marker.addTo(map);
+  marker.idx = i;
+  markers.push(marker);
+
+  // Item en lista lateral
+  const item = document.createElement('div');
+  item.className = 'lista-item';
+  item.dataset.idx = i;
+  item.dataset.nombre = p.nombre.toLowerCase();
+  item.dataset.via = (p.vialidad || '').toLowerCase();
+  item.innerHTML = `
+    <div class="lista-dot ${esSolar ? 'lista-solar' : ''}"></div>
+    <div>
+      <div class="lista-nombre">${p.nombre}</div>
+      <div class="lista-via">${p.vialidad || ''} ${p.altura ? '— ' + p.altura : ''}</div>
+    </div>`;
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.lista-item').forEach(el => el.classList.remove('activo'));
+    item.classList.add('activo');
+    map.setView([p.lat, p.lon], 17);
+    marker.openPopup();
+  });
+  listaEl.appendChild(item);
+});
+
+function buscar(q) {
+  const query = q.toLowerCase().trim();
+  let visibles = 0;
+  document.querySelectorAll('.lista-item').forEach(item => {
+    const idx = parseInt(item.dataset.idx);
+    const coincide = !query || item.dataset.nombre.includes(query) || item.dataset.via.includes(query);
+    item.style.display = coincide ? '' : 'none';
+    if (coincide) {
+      map.addLayer(markers[idx]);
+      visibles++;
+    } else {
+      map.removeLayer(markers[idx]);
+    }
+  });
+  document.getElementById('contador').textContent = visibles + ' cámaras';
+  document.getElementById('no-results').style.display = visibles === 0 ? '' : 'none';
+  
+  // Si hay resultado exacto, centrar el mapa
+  if (query.length >= 3) {
+    const exacto = document.querySelector(`.lista-item[data-nombre="${query}"]`);
+    if (exacto) {
+      const idx = parseInt(exacto.dataset.idx);
+      const p = puntos[idx];
+      map.setView([p.lat, p.lon], 17);
+      markers[idx].openPopup();
+    }
+  }
+}
+</script>
+</body>
+</html>
