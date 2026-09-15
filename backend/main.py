@@ -216,6 +216,27 @@ def get_uts(proyecto: str, authorization: str = Header(None)):
         raise HTTPException(status_code=403, detail="Sin acceso a este proyecto")
     from accesos_api import listar_uts
     return {"uts": listar_uts(proyecto.upper()), "proyecto": proyecto}
+@app.get("/api/inventario/{proyecto}")
+def get_inventario_proyecto(proyecto: str, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    if proyecto.upper() not in sesion["proyectos"]:
+        raise HTTPException(status_code=403, detail="Sin acceso")
+    from inventario_api import get_resumen_proyecto, get_movimientos
+    resumen = get_resumen_proyecto(proyecto.upper())
+    resumen["movimientos"] = get_movimientos(proyecto.upper())
+    return resumen
+
+@app.get("/api/inventario/{proyecto}/{ut}")
+def get_inventario_ut_endpoint(proyecto: str, ut: str, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    if proyecto.upper() not in sesion["proyectos"]:
+        raise HTTPException(status_code=403, detail="Sin acceso")
+    from inventario_api import get_inventario_ut, get_movimientos
+    resultado, error = get_inventario_ut(ut, proyecto.upper())
+    if error:
+        raise HTTPException(status_code=404, detail=error)
+    resultado["movimientos"] = get_movimientos(ut=ut)
+    return resultado
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
