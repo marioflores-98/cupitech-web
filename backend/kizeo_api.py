@@ -131,7 +131,29 @@ def get_reporte_detalle(tipo: str, reporte_id: str):
             return r
     return None
 
-def get_estadisticas_tecnico(tipo: str = "correctivo"):
+def get_estadisticas_tecnico(tipo: str = "correctivo", proyectos_filtro=None):
+    """Calcula ranking de técnicos filtrado por proyectos si aplica"""
+    df = leer_csv(tipo)
+    if df.empty:
+        return []
+    
+    # Filtrar por proyecto si el usuario no es admin
+    if proyectos_filtro:
+        proyecto_nombres = {
+            "PUEBLA": "Puebla", "QRO": "Querétaro",
+            "EDOMEX": ["Mexibús", "Trolebús"],
+            "TLAXCALA": "Tlaxcala", "LEON": "León",
+            "SAN_ANDRES": "San Andrés Cholula",
+        }
+        nombres_permitidos = []
+        for p in proyectos_filtro:
+            n = proyecto_nombres.get(p, "")
+            if isinstance(n, list):
+                nombres_permitidos.extend(n)
+            elif n:
+                nombres_permitidos.append(n)
+        if nombres_permitidos and 'proyecto' in df.columns:
+            df = df[df['proyecto'].isin(nombres_permitidos)]
     """Calcula ranking de técnicos"""
     df = leer_csv(tipo)
     if df.empty:
@@ -156,7 +178,9 @@ def get_estadisticas_tecnico(tipo: str = "correctivo"):
             if inicio and fin and inicio != "nan" and fin != "nan":
                 ini = datetime.strptime(inicio[:16], "%Y-%m-%d %H:%M")
                 fn = datetime.strptime(fin[:16], "%Y-%m-%d %H:%M")
-                stats[tecnico]["tiempos"].append(int((fn - ini).total_seconds() / 60))
+                mins = int((fn - ini).total_seconds() / 60)
+                if mins > 0:
+                    stats[tecnico]["tiempos"].append(mins)
         except:
             pass
     
