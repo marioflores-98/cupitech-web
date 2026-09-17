@@ -60,7 +60,7 @@ def get_reportes_resumidos(tipo: str = "correctivo", limit: int = 50):
     if 'create_time' in df.columns:
         df = df.sort_values('create_time', ascending=False)
     
-    df = df.head(limit)
+    df = df.head(500)
     reportes = []
     
     for _, row in df.iterrows():
@@ -98,6 +98,7 @@ def get_reportes_resumidos(tipo: str = "correctivo", limit: int = 50):
             "proyecto": proyecto,
             "proyecto_id": proyecto_id,
             "fecha": val("date_et_heure")[:10] if val("date_et_heure") else val("create_time")[:10],
+            "fecha_creacion": str(row.get("create_time", ""))[:10],
             "vialidad": val("vialidad"),
             "tecnico": tecnico.split()[0] if tecnico else "--",
             "tecnico_completo": tecnico,

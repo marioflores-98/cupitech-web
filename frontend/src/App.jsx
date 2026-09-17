@@ -1009,6 +1009,17 @@ function Reportes({ token, proyectosUsuario }) {
     { id: "LEON", label: "León" },
   ];
   const [proyectoFiltro, setProyectoFiltro] = useState("todos");
+  const [mesFiltro, setMesFiltro] = useState("todos");
+  const MESES = [
+    { id: "todos", label: "📅 Todos" },
+    { id: "2026-09", label: "Sep 26" },
+    { id: "2026-08", label: "Ago 26" },
+    { id: "2026-07", label: "Jul 26" },
+    { id: "2026-06", label: "Jun 26" },
+    { id: "2026-05", label: "May 26" },
+    { id: "2026-04", label: "Abr 26" },
+    { id: "2026-03", label: "Mar 26" },
+  ];
   const TIPOS = [
     { id: "correctivo", label: "🔧 Correctivos" },
     { id: "preventivo", label: "🔵 Preventivos" },
@@ -1023,15 +1034,15 @@ function Reportes({ token, proyectosUsuario }) {
   };
 
   useEffect(() => { cargar(); }, [tipo]);
-  const reportesFiltrados = proyectoFiltro === "todos"
-    ? reportes
-    : reportes.filter(r => r.proyecto_id === proyectoFiltro);
+  const reportesFiltrados = reportes
+    .filter(r => proyectoFiltro === "todos" || r.proyecto_id === proyectoFiltro)
+    .filter(r => mesFiltro === "todos" || (r.fecha_creacion && r.fecha_creacion.startsWith(mesFiltro)));
 
   async function cargar() {
     setLoading(true);
     setSeleccionado(null);
     try {
-      const r = await fetch(`${API}/api/kizeo/${tipo}?limit=30`, { headers });
+      const r = await fetch(`${API}/api/kizeo/${tipo}?limit=500`, { headers });
       const data = await r.json();
       setReportes(data.reportes || []);
     } catch (e) { console.error(e); }
@@ -1058,6 +1069,9 @@ function Reportes({ token, proyectosUsuario }) {
               }}>{p.label}</button>
             ))}
           </div>
+          <select value={mesFiltro} onChange={e => setMesFiltro(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontSize: 12, color: "#475569", cursor: "pointer", outline: "none" }}>
+            {MESES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
           <div style={{ width: 1, height: 32, background: "#E2E8F0" }}></div>
           {TIPOS.map(t => (
             <button key={t.id} onClick={() => setTipo(t.id)} style={{
