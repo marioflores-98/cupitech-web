@@ -442,6 +442,29 @@ def enviar_mensaje(conv_id: int, body: ChatMsg, authorization: str = Header(None
         titulo = body.mensaje[:50] + ("..." if len(body.mensaje) > 50 else "")
         actualizar_titulo_conversacion(conv_id, titulo)
     return {"respuesta": respuesta}
+# ── Kizeo ────────────────────────────────────────────────
+@app.get("/api/kizeo/{tipo}")
+def get_kizeo_reportes(tipo: str, limit: int = 20, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    from kizeo_api import get_reportes_resumidos
+    reportes = get_reportes_resumidos(tipo, limit)
+    return {"reportes": reportes, "tipo": tipo, "total": len(reportes)}
+
+@app.get("/api/kizeo/{tipo}/{reporte_id}")
+def get_kizeo_detalle(tipo: str, reporte_id: str, authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    from kizeo_api import get_reporte_detalle
+    det = get_reporte_detalle(tipo, reporte_id)
+    if not det:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    return det
+
+@app.get("/api/kizeo-stats")
+def get_kizeo_stats(authorization: str = Header(None)):
+    sesion = get_sesion_actual(authorization)
+    from kizeo_api import get_estadisticas_tecnico
+    return {"estadisticas": get_estadisticas_tecnico("correctivo", 200)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
