@@ -103,6 +103,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/inventario", label: "📦 Inventario" },
     { path: "/mapas", label: "🗺️ Mapas" },
     { path: "/chat", label: "💬 Chat" },
+    { path: "/reportes", label: "📋 Reportes" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -793,7 +794,7 @@ function Chat({ token, usuario }) {
   const [loadingConv, setLoadingConv] = useState(true);
   const mensajesRef = useRef(null);
   const API = "http://localhost:8000";
-  const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   useEffect(() => { cargarConversaciones(); }, []);
   useEffect(() => {
@@ -814,7 +815,7 @@ function Chat({ token, usuario }) {
   async function nuevaConversacion() {
     const r = await fetch(`${API}/api/chat/conversaciones`, {
       method: "POST", headers,
-      body: JSON.stringify({ titulo: "Nueva conversación" })
+      body: JSON.stringify({ titulo: null })
     });
     const data = await r.json();
     setConvActual(data.id);
@@ -990,6 +991,183 @@ function Chat({ token, usuario }) {
   );
 }
 
+
+// ── Reportes Kizeo ────────────────────────────────────────
+function Reportes({ token, proyectosUsuario }) {
+  const [tipo, setTipo] = useState("correctivo");
+  const [reportes, setReportes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [seleccionado, setSeleccionado] = useState(null);
+  const API = "http://localhost:8000";
+  const headers = { "Authorization": `Bearer ${token}` };
+  const PROYECTOS = [
+    { id: "todos", label: "🌐 Todos" },
+    { id: "PUEBLA", label: "Puebla" },
+    { id: "QRO", label: "Querétaro" },
+    { id: "EDOMEX", label: "Mexibús / Trolebús" },
+    { id: "TLAXCALA", label: "Tlaxcala" },
+    { id: "LEON", label: "León" },
+  ];
+  const [proyectoFiltro, setProyectoFiltro] = useState("todos");
+  const TIPOS = [
+    { id: "correctivo", label: "🔧 Correctivos" },
+    { id: "preventivo", label: "🔵 Preventivos" },
+    { id: "diagnostico", label: "🔍 Diagnósticos" },
+  ];
+
+  const ESTADO_COLOR = {
+    "Terminado": { bg: "#DCFCE7", color: "#166534" },
+    "received": { bg: "#DCFCE7", color: "#166534" },
+    "Enviado": { bg: "#FEF9C3", color: "#854D0E" },
+    "sent": { bg: "#FEF9C3", color: "#854D0E" },
+  };
+
+  useEffect(() => { cargar(); }, [tipo]);
+  const reportesFiltrados = proyectoFiltro === "todos"
+    ? reportes
+    : reportes.filter(r => r.proyecto_id === proyectoFiltro);
+
+  async function cargar() {
+    setLoading(true);
+    setSeleccionado(null);
+    try {
+      const r = await fetch(`${API}/api/kizeo/${tipo}?limit=30`, { headers });
+      const data = await r.json();
+      setReportes(data.reportes || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+
+  function formatTiempo(min) {
+    if (!min) return "--";
+    if (min < 60) return `${min} min`;
+    return `${Math.floor(min/60)}h ${min%60}min`;
+  }
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h1 style={{ margin: 0, color: "#1E3A5F", fontSize: 22 }}>📋 Reportes Kizeo</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {PROYECTOS.map(p => (
+              <button key={p.id + p.label} onClick={() => setProyectoFiltro(p.id)} style={{
+                padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12,
+                background: proyectoFiltro === p.id ? "#C0392B" : "#F1F5F9",
+                color: proyectoFiltro === p.id ? "#FFFFFF" : "#475569",
+              }}>{p.label}</button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 32, background: "#E2E8F0" }}></div>
+          {TIPOS.map(t => (
+            <button key={t.id} onClick={() => setTipo(t.id)} style={{
+              padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 13,
+              background: tipo === t.id ? "#1E3A5F" : "#F1F5F9",
+              color: tipo === t.id ? "#FFFFFF" : "#475569",
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", color: "#94A3B8", padding: 40 }}>Cargando reportes de Kizeo...</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: seleccionado ? "1fr 1fr" : "1fr", gap: 16 }}>
+          
+          {/* Lista */}
+          <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+            <div style={{ fontSize: 13, color: "#64748B", marginBottom: 12 }}>{reportesFiltrados.length} reportes</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "#F1F5F9" }}>
+                  {["#", "Fecha", "UT", "Técnico", "Falla", "Tiempo", "Estado"].map((h, i) => (
+                    <th key={i} style={{ padding: "6px 8px", textAlign: "left", color: "#64748B", fontWeight: "bold" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {reportesFiltrados.map((rep, i) => {
+                  const est = ESTADO_COLOR[rep.estado] || { bg: "#F1F5F9", color: "#475569" };
+                  return (
+                    <tr key={i} onClick={() => setSeleccionado(rep)} style={{
+                      borderBottom: "0.5px solid #E2E8F0", cursor: "pointer",
+                      background: seleccionado?.id === rep.id ? "#EFF6FF" : i % 2 === 0 ? "#FFFFFF" : "#F8FAFC"
+                    }}>
+                      <td style={{ padding: "7px 8px", fontWeight: "bold", color: "#1E3A5F" }}>#{rep.numero}</td>
+                      <td style={{ padding: "7px 8px", color: "#64748B" }}>{rep.fecha}</td>
+                      <td style={{ padding: "7px 8px", fontWeight: "bold", color: "#0F172A" }}>{rep.ut || "--"}</td>
+                      <td style={{ padding: "7px 8px", color: "#475569" }}>{rep.tecnico?.split(" ")[0] || "--"}</td>
+                      <td style={{ padding: "7px 8px", color: "#475569", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rep.falla || "--"}</td>
+                      <td style={{ padding: "7px 8px", color: "#64748B" }}>{formatTiempo(rep.tiempo_resolucion_min)}</td>
+                      <td style={{ padding: "7px 8px" }}>
+                        <span style={{ background: est.bg, color: est.color, padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: "bold" }}>
+                          {rep.estado === "received" ? "Terminado" : rep.estado || "--"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Detalle */}
+          {seleccionado && (
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: "bold", color: "#1E3A5F" }}>Reporte #{seleccionado.numero}</div>
+                  <div style={{ fontSize: 13, color: "#64748B" }}>{seleccionado.tipo_label} · {seleccionado.fecha}</div>
+                </div>
+                <button onClick={() => setSeleccionado(null)} style={{ background: "#F1F5F9", border: "none", borderRadius: 6, padding: "6px 10px", cursor: "pointer", fontSize: 13 }}>✕</button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                {[
+                  ["📍 UT", seleccionado.ut],
+                  ["📅 Fecha", seleccionado.fecha],
+                  ["👷 Técnico", seleccionado.tecnico],
+                  ["✅ Validador", seleccionado.validador],
+                  ["🕐 Inicio", seleccionado.inicio],
+                  ["🕓 Fin", seleccionado.fin],
+                  ["⏱️ Tiempo", formatTiempo(seleccionado.tiempo_resolucion_min)],
+                  ["📌 Vialidad", seleccionado.vialidad],
+                ].map(([label, val], i) => (
+                  <div key={i} style={{ background: "#F8FAFC", borderRadius: 8, padding: "8px 12px" }}>
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#0F172A" }}>{val || "--"}</div>
+                  </div>
+                ))}
+              </div>
+
+              {seleccionado.falla && (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#DC2626", fontWeight: "bold", marginBottom: 4 }}>🔴 FALLA / ACCIÓN REQUERIDA</div>
+                  <div style={{ fontSize: 13, color: "#0F172A" }}>{seleccionado.falla}</div>
+                </div>
+              )}
+
+              {seleccionado.componente && (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#166534", fontWeight: "bold", marginBottom: 4 }}>📦 COMPONENTE REEMPLAZADO</div>
+                  <div style={{ fontSize: 13, color: "#0F172A" }}>{seleccionado.componente} {seleccionado.cantidad ? `(${seleccionado.cantidad})` : ""}</div>
+                </div>
+              )}
+
+              {seleccionado.observaciones && seleccionado.observaciones !== "N/A" && (
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: "#64748B", fontWeight: "bold", marginBottom: 4 }}>💬 OBSERVACIONES</div>
+                  <div style={{ fontSize: 13, color: "#475569" }}>{seleccionado.observaciones}</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -1032,6 +1210,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/inventario" element={<Inventario token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="/mapas" element={<Mapas token={token} proyectosUsuario={usuario?.proyectos || []} usuario={usuario} />} />
         <Route path="/chat" element={<Chat token={token} usuario={usuario} />} />
+        <Route path="/reportes" element={<Reportes token={token} proyectosUsuario={usuario?.proyectos || []} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
