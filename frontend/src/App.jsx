@@ -104,6 +104,7 @@ function NavBar({ hora, usuario, onLogout }) {
     { path: "/mapas", label: "🗺️ Mapas" },
     { path: "/chat", label: "💬 Chat" },
     { path: "/reportes", label: "📋 Reportes" },
+    { path: "/bi", label: "📊 BI Mantenimiento" },
   ];
   return (
     <div style={{ background: "#1E3A5F", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1182,6 +1183,30 @@ function Reportes({ token, proyectosUsuario }) {
   );
 }
 
+// ── Power BI ──────────────────────────────────────────────
+function BI() {
+  const reportes = [
+    { nombre: "Dashboard Mantenimiento", url: "https://app.powerbi.com/links/lyA8lD-bRI?ctid=d4b3c73a-7555-49a9-ab7e-e702f3f63d07&pbi_source=linkShare", icon: "🔧" },
+  ];
+  return (
+    <div style={{ padding: 24 }}>
+      <h1 style={{ margin: "0 0 20px", color: "#1E3A5F", fontSize: 22 }}>📊 Dashboards BI — Autotraffic</h1>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        {reportes.map((r, i) => (
+          <div key={i} style={{ background: "#FFFFFF", borderRadius: 12, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>{r.icon}</div>
+            <div style={{ fontSize: 16, fontWeight: "bold", color: "#1E3A5F", marginBottom: 16 }}>{r.nombre}</div>
+            <a href={r.url} target="_blank" rel="noreferrer" style={{
+              display: "inline-block", padding: "10px 24px", background: "#C0392B", color: "#FFFFFF",
+              borderRadius: 8, textDecoration: "none", fontWeight: "bold", fontSize: 14
+            }}>Abrir en Power BI ↗</a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────
 function AppContent({ usuario, token, onLogout }) {
   const [proyectos, setProyectos] = useState([]);
@@ -1225,6 +1250,7 @@ function AppContent({ usuario, token, onLogout }) {
         <Route path="/mapas" element={<Mapas token={token} proyectosUsuario={usuario?.proyectos || []} usuario={usuario} />} />
         <Route path="/chat" element={<Chat token={token} usuario={usuario} />} />
         <Route path="/reportes" element={<Reportes token={token} proyectosUsuario={usuario?.proyectos || []} />} />
+        <Route path="/bi" element={<BI />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, padding: "16px 0" }}>
