@@ -460,11 +460,11 @@ def get_kizeo_detalle(tipo: str, reporte_id: str, authorization: str = Header(No
     return det
 
 @app.get("/api/kizeo-stats")
-def get_kizeo_stats(tipo: str = "correctivo", authorization: str = Header(None)):
+def get_kizeo_stats(tipo: str = "correctivo", mes: str = None, authorization: str = Header(None)):
     sesion = get_sesion_actual(authorization)
     from kizeo_api import get_estadisticas_tecnico
     proyectos = sesion["proyectos"] if sesion["rol"] not in ["ingenieria", "ceo", "oficina_central"] else None
-    return {"estadisticas": get_estadisticas_tecnico(tipo, proyectos_filtro=proyectos)}
+    return {"estadisticas": get_estadisticas_tecnico(tipo, proyectos_filtro=proyectos, mes_filtro=mes)}
 
 if __name__ == "__main__":
     import uvicorn
