@@ -97,7 +97,7 @@ def login(correo: str, password: str):
         "rol": usuario["rol"],
         "proyectos": usuario["proyectos"],
         "created": datetime.now(),
-        "expires": datetime.now() + timedelta(hours=8),
+        "expires": datetime.now() + timedelta(hours=24),
     }
     return token, None
 

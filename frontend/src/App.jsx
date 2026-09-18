@@ -1035,7 +1035,7 @@ function Reportes({ token, proyectosUsuario }) {
     "sent": { bg: "#FEF9C3", color: "#854D0E" },
   };
 
-  useEffect(() => { cargar(); }, [tipo]);
+  useEffect(() => { cargar(); }, [tipo, mes]);
   const reportesFiltrados = reportes
     .filter(r => proyectoFiltro === "todos" || r.proyecto_id === proyectoFiltro)
     .filter(r => mesFiltro === "todos" || (r.fecha_creacion && r.fecha_creacion.startsWith(mesFiltro)));
@@ -1214,6 +1214,17 @@ function Ranking({ token }) {
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tipo, setTipo] = useState("correctivo");
+  const [mes, setMes] = useState("");
+  const MESES_RANK = [
+    { id: "", label: "📅 Todos" },
+    { id: "2026-09", label: "Sep 26" },
+    { id: "2026-08", label: "Ago 26" },
+    { id: "2026-07", label: "Jul 26" },
+    { id: "2026-06", label: "Jun 26" },
+    { id: "2026-05", label: "May 26" },
+    { id: "2026-04", label: "Abr 26" },
+    { id: "2026-03", label: "Mar 26" },
+  ];
   const API = "http://localhost:8000";
   const headers = { "Authorization": `Bearer ${token}` };
 
@@ -1223,12 +1234,12 @@ function Ranking({ token }) {
     { id: "diagnostico", label: "🔍 Diagnósticos" },
   ];
 
-  useEffect(() => { cargar(); }, [tipo]);
+  useEffect(() => { cargar(); }, [tipo, mes]);
 
   async function cargar() {
     setLoading(true);
     try {
-      const r = await fetch(`${API}/api/kizeo-stats?tipo=${tipo}`, { headers });
+      const r = await fetch(`${API}/api/kizeo-stats?tipo=${tipo}${mes ? "&mes=" + mes : ""}`, { headers });
       const data = await r.json();
       setStats(data.estadisticas || []);
     } catch (e) { console.error(e); }
@@ -1248,7 +1259,10 @@ function Ranking({ token }) {
     <div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1 style={{ margin: 0, color: "#1E3A5F", fontSize: 22 }}>🏆 Ranking de Técnicos</h1>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={mes} onChange={e => setMes(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontSize: 12, color: "#475569", cursor: "pointer", outline: "none" }}>
+            {MESES_RANK.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
           {TIPOS.map(t => (
             <button key={t.id} onClick={() => setTipo(t.id)} style={{
               padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 13,

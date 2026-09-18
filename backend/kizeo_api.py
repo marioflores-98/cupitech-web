@@ -131,12 +131,16 @@ def get_reporte_detalle(tipo: str, reporte_id: str):
             return r
     return None
 
-def get_estadisticas_tecnico(tipo: str = "correctivo", proyectos_filtro=None):
+def get_estadisticas_tecnico(tipo: str = "correctivo", proyectos_filtro=None, mes_filtro: str = None):
     """Calcula ranking de técnicos filtrado por proyectos si aplica"""
     df = leer_csv(tipo)
     if df.empty:
         return []
     
+    # Filtrar por mes
+    if mes_filtro and 'create_time' in df.columns:
+        df = df[df['create_time'].astype(str).str.startswith(mes_filtro)]
+
     # Filtrar por proyecto si el usuario no es admin
     if proyectos_filtro:
         proyecto_nombres = {
@@ -154,10 +158,6 @@ def get_estadisticas_tecnico(tipo: str = "correctivo", proyectos_filtro=None):
                 nombres_permitidos.append(n)
         if nombres_permitidos and 'proyecto' in df.columns:
             df = df[df['proyecto'].isin(nombres_permitidos)]
-    """Calcula ranking de técnicos"""
-    df = leer_csv(tipo)
-    if df.empty:
-        return []
     
     stats = {}
     for _, row in df.iterrows():
